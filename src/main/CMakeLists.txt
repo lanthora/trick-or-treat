@@ -1,16 +1,16 @@
 aux_source_directory(. DIR_SRCS)
 add_executable(${CANDY_EXECUTE_NAME} ${DIR_SRCS})
 
-set_target_properties(${CANDY_EXECUTE_NAME} PROPERTIES CXX_STANDARD 20)
+set_target_properties(${CANDY_EXECUTE_NAME} PROPERTIES CXX_STANDARD 23)
 
 if (${CANDY_STATIC_SPDLOG})
     target_link_libraries(${CANDY_EXECUTE_NAME} PRIVATE spdlog::spdlog)
 else()
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(DEPS REQUIRED spdlog)
-    add_definitions(${DEPS_CFLAGS})
-    include_directories(${DEPS_INCLUDEDIR})
-    target_link_libraries(${CANDY_EXECUTE_NAME} PRIVATE ${DEPS_LIBRARIES})
+    pkg_check_modules(SPDLOG REQUIRED spdlog)
+    add_definitions(${SPDLOG_CFLAGS})
+    include_directories(${SPDLOG_INCLUDEDIR})
+    target_link_libraries(${CANDY_EXECUTE_NAME} PRIVATE ${SPDLOG_LIBRARIES})
 endif()
 
 if (${CANDY_STATIC_OPENSSL})
