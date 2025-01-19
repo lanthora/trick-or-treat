@@ -35,14 +35,17 @@ jobs:
         echo "IMAGE_TAG=${GIT_TAG#v}" >> $GITHUB_ENV
     - name: build and push
       uses: docker/build-push-action@v5
+      if: github.event_name == 'release'
       with:
         context: .
         provenance: false
         platforms: linux/amd64,linux/arm64,linux/arm/v7
         push: true
         tags: |
-          docker.io/${{ secrets.DOCKERHUB_USERNAME }}/candy:${{ env.IMAGE_TAG || 'latest' }}
-          ghcr.io/${{ github.actor }}/candy:${{ env.IMAGE_TAG || 'latest' }}
+          docker.io/${{ secrets.DOCKERHUB_USERNAME }}/candy:${{ env.IMAGE_TAG }}
+          docker.io/${{ secrets.DOCKERHUB_USERNAME }}/candy:latest
+          ghcr.io/${{ github.actor }}/candy:${{ env.IMAGE_TAG }}
+          ghcr.io/${{ github.actor }}/candy:latest
 
   windows:
     runs-on: windows-latest
