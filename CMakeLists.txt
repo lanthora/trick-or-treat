@@ -9,7 +9,7 @@ option(CANDY_STATIC "Static linking dependent libraries")
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 if (${CANDY_STATIC})
-    if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
     endif()
     set(CMAKE_SKIP_BUILD_RPATH TRUE)
