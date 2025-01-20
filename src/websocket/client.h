@@ -16,6 +16,7 @@ class Client;
 
 class WebSocketClient {
 public:
+    int setName(const std::string &name);
     int setPassword(const std::string &password);
     int setWsServerUri(const std::string &uri);
     int setExptTunAddress(const std::string &cidr);
@@ -67,6 +68,7 @@ private:
     std::string exptTunCidr;
     std::string tunCidr;
     std::string vmac;
+    std::string name;
     std::string password;
     Client *client;
 };

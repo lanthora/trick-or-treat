@@ -27,6 +27,7 @@ void MsgQueue::write(Msg msg) {
 void Client::setName(const std::string &name) {
     this->tunName = name;
     tun.setName(name);
+    ws.setName(name);
 }
 
 std::string Client::getName() const {

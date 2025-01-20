@@ -18,6 +18,11 @@
 
 namespace Candy {
 
+int WebSocketClient::setName(const std::string &name) {
+    this->name = name;
+    return 0;
+}
+
 int WebSocketClient::setPassword(const std::string &password) {
     this->password = password;
     return 0;
@@ -267,6 +272,7 @@ void WebSocketClient::sendAuthMsg() {
     if (addressUpdateCallback) {
         addressUpdateCallback(address.toCidr());
     }
+    sendPingMessage();
 }
 
 void WebSocketClient::sendDiscoveryMsg(IP4 dst) {
@@ -280,6 +286,9 @@ void WebSocketClient::sendDiscoveryMsg(IP4 dst) {
 }
 
 std::string WebSocketClient::hostName() {
+    if (!this->name.empty()) {
+        return this->name;
+    }
     char hostname[64] = {0};
     if (!gethostname(hostname, sizeof(hostname))) {
         return std::string(hostname, strnlen(hostname, sizeof(hostname)));
@@ -319,6 +328,7 @@ int WebSocketClient::connect() {
         }
         this->timestamp = bootTime();
         this->pingMessage = fmt::format("candy::{}::{}::{}", CANDY_SYSTEM, CANDY_VERSION, hostName());
+        spdlog::info("client info: {}", this->pingMessage);
         return 0;
     } catch (std::exception &e) {
         spdlog::critical("websocket connect failed: {}", e.what());
