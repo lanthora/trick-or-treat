@@ -216,16 +216,15 @@ std::string loadTunAddress(const std::string &name) {
     return "0.0.0.0/0";
 }
 
-std::string virtualMac(const std::string &name) {
+static const int VMAC_SIZE = 16;
+
+std::string virtualMacHelper(std::string name = "") {
     try {
-        std::string cache = storageDirectory("vmac/");
-        cache += name.empty() ? "__noname__" : name;
-        std::filesystem::create_directories(std::filesystem::path(cache).parent_path());
-
-        char buffer[16];
+        std::string path = storageDirectory("vmac/");
+        path += name.empty() ? "__noname__" : name;
+        char buffer[VMAC_SIZE];
         std::stringstream ss;
-
-        std::ifstream ifs(cache);
+        std::ifstream ifs(path);
         if (ifs.is_open()) {
             ifs.read(buffer, sizeof(buffer));
             if (ifs) {
@@ -234,19 +233,46 @@ std::string virtualMac(const std::string &name) {
                 }
             }
             ifs.close();
-        } else {
-            ss << Candy::randomHexString(sizeof(buffer));
-            std::ofstream ofs(cache);
-            if (ofs.is_open()) {
-                ofs << ss.str();
-                ofs.close();
-            }
+            return ss.str();
+        }
+        return "";
+    } catch (std::exception &e) {
+        return "";
+    }
+}
+
+std::string initVirtualMac() {
+    try {
+        std::string path = storageDirectory("vmac/__noname__");
+        std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+        std::stringstream ss;
+        ss << Candy::randomHexString(VMAC_SIZE);
+        std::ofstream ofs(path);
+        if (ofs.is_open()) {
+            ofs << ss.str();
+            ofs.close();
         }
         return ss.str();
     } catch (std::exception &e) {
-        spdlog::critical("vmac failed: {}", e.what());
+        spdlog::critical("init vmac failed: {}", e.what());
         return "";
     }
+}
+
+std::string virtualMac(const std::string &name) {
+    std::string path;
+    // 兼容老版本,优先获取与配置网卡名对应的 vmac
+    path = virtualMacHelper(name);
+    if (!path.empty()) {
+        return path;
+    }
+    // 获取网卡名无关的全局 vmac
+    path = virtualMacHelper();
+    if (!path.empty()) {
+        return path;
+    }
+    // 初次启动,生成全局 vmac
+    return initVirtualMac();
 }
 
 bool hasContainerVolume(const arguments &args) {
