@@ -9,6 +9,7 @@ namespace Candy {
 class TCP : public Connector {
 public:
     bool isConnected() const;
+    bool tryToConnect();
 };
 
 class TCP4 : public TCP {};

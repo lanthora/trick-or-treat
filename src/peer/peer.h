@@ -44,6 +44,10 @@ private:
     int sendTo(IP4 dst, const Msg &msg);
 
 private:
+    void tick();
+    std::thread tickThread;
+
+private:
     std::shared_mutex ipPeerMutex;
     std::unordered_map<IP4, PeerInfo> ipPeerMap;
 
@@ -52,7 +56,7 @@ private:
 
 private:
     int initSocket();
-    // 默认监听端口, 如果不配置, 各个模块自行随机端口号
+    // 默认监听端口,如果不配置,随机监听
     uint16_t listenPort = 0;
 
     // 维护用于监听的 socket, 读操作统一在外部完成, 写操作给到 PeerInfo

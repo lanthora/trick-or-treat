@@ -19,9 +19,10 @@ enum class UdpPeerState {
 class UDP : public Connector {
 public:
     bool isConnected() const;
+    bool tryToConnect();
 
 private:
-    UdpPeerState state;
+    UdpPeerState state = UdpPeerState::INIT;
 };
 
 class UDP4 : public UDP {};

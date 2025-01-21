@@ -4,6 +4,7 @@
 #include "core/message.h"
 #include "core/net.h"
 #include "peer/message.h"
+#include "utility/time.h"
 #include <Poco/Net/NetException.h>
 #include <shared_mutex>
 #include <spdlog/spdlog.h>
@@ -50,6 +51,16 @@ int Peer::run(Client *client) {
             handlePeerQueue();
         }
     });
+    this->tickThread = std::thread([&] {
+        while (this->client->running) {
+            // 执行耗时操作前设置唤醒时间
+            auto wake_time = std::chrono::system_clock::now() + std::chrono::seconds(1);
+            // 操作时间不应该超过总休眠时间
+            tick();
+            // 根据先前设定时间唤醒进程,能够确保唤醒时间不受 tick() 执行时间影响
+            std::this_thread::sleep_until(wake_time);
+        }
+    });
 
     return 0;
 }
@@ -57,6 +68,9 @@ int Peer::run(Client *client) {
 int Peer::shutdown() {
     if (this->msgThread.joinable()) {
         this->msgThread.join();
+    }
+    if (this->tickThread.joinable()) {
+        this->tickThread.join();
     }
     return 0;
 }
@@ -112,10 +126,8 @@ void Peer::handlePacket(Msg msg) {
 }
 
 void Peer::handleTryP2P(Msg msg) {
-    // TODO: 尝试与特定对端建立直连
     IP4 src(msg.data);
 
-    // TODO: 调用多个子模块分别尝试建立 P2P
     std::shared_lock ipPeerLock(this->ipPeerMutex);
     auto it = this->ipPeerMap.find(src);
     if (it == this->ipPeerMap.end()) {
@@ -124,7 +136,7 @@ void Peer::handleTryP2P(Msg msg) {
         {
             // 单独的作用域内加锁，否则造成死锁
             std::unique_lock lock(this->ipPeerMutex);
-            this->ipPeerMap.emplace(src, src);
+            this->ipPeerMap.emplace(src, std::move(PeerInfo(src)));
         }
         this->ipPeerMutex.lock_shared();
         // 释放写锁重新获取读锁的过程中迭代器可能失效,需要重新获取
@@ -136,13 +148,14 @@ void Peer::handleTryP2P(Msg msg) {
         return;
     }
 
-    auto &info = it->second;
+    it->second.tryConnecct();
+}
 
-    // TODO: 当真正开始尝试 P2P 的时候才打印日志
-    if (true) {
-        // TODO: 降低这个日志的频率
-        spdlog::debug("TRYP2P: {}", src.toString());
-    }
+void Peer::tick() {
+    spdlog::debug("tick: {}", getCurrentTimeWithMillis());
+
+    // TODO: 替换成真实操作,这里模拟 500 ms 的耗时操作
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
 int Peer::initSocket() {

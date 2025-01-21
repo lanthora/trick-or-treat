@@ -13,6 +13,8 @@ extern std::string ntpServer;
 int64_t unixTime();
 int64_t bootTime();
 
+std::string getCurrentTimeWithMillis();
+
 } // namespace Candy
 
 #endif

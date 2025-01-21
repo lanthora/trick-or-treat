@@ -34,6 +34,17 @@ bool PeerInfo::isConnected() const {
     return false;
 }
 
+void PeerInfo::tryConnecct() {
+    for (const auto &t : std::vector<std::string>{"UDP4"}) {
+        auto it = this->connectors.find(t);
+        if (it != this->connectors.end()) {
+            if (it->second->tryToConnect()) {
+                spdlog::debug("try to connect: protocol=[{}] peer={}", t, this->addr.toString());
+            }
+        }
+    }
+}
+
 int PeerInfo::send(const std::string &data) {
     return -1;
 }

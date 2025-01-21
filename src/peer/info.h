@@ -24,6 +24,7 @@ public:
 
 public:
     bool isConnected() const;
+    void tryConnecct();
     int send(const std::string &data);
 
 private:

@@ -7,4 +7,9 @@ bool TCP::isConnected() const {
     return false;
 }
 
+bool TCP::tryToConnect() {
+    // TODO: 尝试 TCP P2P
+    return false;
+}
+
 } // namespace Candy

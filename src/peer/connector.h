@@ -7,6 +7,7 @@ namespace Candy {
 class Connector {
 public:
     virtual bool isConnected() const = 0;
+    virtual bool tryToConnect() = 0;
 };
 
 } // namespace Candy
