@@ -38,6 +38,7 @@ void arguments::dump() {
     dump("sdwan", this->sdwan);
     dump("name", this->name);
     dump("tun", this->tun);
+    dump("transport", this->transport);
     dump("stun", this->stun);
     dump("localhost", this->localhost);
     dump("discovery", this->discovery);
@@ -51,25 +52,27 @@ void arguments::dump() {
 int arguments::parse(int argc, char *argv[]) {
     argparse::ArgumentParser program("candy", CANDY_VERSION);
 
-    program.add_argument("-m", "--mode").help("working mode").metavar("TEXT");
-    program.add_argument("-w", "--websocket").help("websocket address").metavar("URI");
-    program.add_argument("-p", "--password").help("authorization password").metavar("TEXT");
-    program.add_argument("--ntp").help("ntp server").metavar("HOST");
-    program.add_argument("--restart").help("restart interval").scan<'i', int>().metavar("SECONDS");
-    program.add_argument("-d", "--dhcp").help("dhcp address range").metavar("CIDR");
-    program.add_argument("--sdwan").help("software-defined wide area network").metavar("ROUTES");
-    program.add_argument("-n", "--name").help("network interface name").metavar("TEXT");
-    program.add_argument("--workers").help("workers number").scan<'i', int>().metavar("NUM");
-    program.add_argument("-t", "--tun").help("static address").metavar("CIDR");
-    program.add_argument("-s", "--stun").help("stun address").metavar("URI");
-    program.add_argument("--port").help("udp port").scan<'i', int>().metavar("NUMBER");
-    program.add_argument("--mtu").help("maximum transmission unit").scan<'i', int>().metavar("NUMBER");
-    program.add_argument("-r", "--route").help("routing cost").scan<'i', int>().metavar("COST");
-    program.add_argument("--discovery").help("discovery interval").scan<'i', int>().metavar("SECONDS");
-    program.add_argument("--localhost").help("local ip").metavar("IP");
-    program.add_argument("-c", "--config").help("config file path").metavar("PATH");
-    program.add_argument("--no-timestamp").implicit_value(true).help("disable log time");
-    program.add_argument("--debug").implicit_value(true).help("show debug log");
+    program.add_argument("-c", "--config").help("config file path");
+    program.add_argument("--mode").help("working mode");
+    program.add_argument("--websocket").help("websocket address");
+    program.add_argument("--password").help("authorization password");
+    program.add_argument("--ntp").help("ntp server");
+    program.add_argument("--restart").help("restart interval").scan<'i', int>();
+    program.add_argument("--dhcp").help("dhcp address range");
+    program.add_argument("--sdwan").help("software-defined wide area network");
+    program.add_argument("--name").help("network interface name");
+    program.add_argument("--workers").help("workers number").scan<'i', int>();
+    program.add_argument("--tun").help("static address");
+    program.add_argument("--transport").help("used p2p methods in order of priority");
+    program.add_argument("--stun").help("stun address");
+    program.add_argument("--port").help("udp port").scan<'i', int>();
+    program.add_argument("--mtu").help("maximum transmission unit").scan<'i', int>();
+    program.add_argument("--route").help("routing cost").scan<'i', int>();
+    program.add_argument("--discovery").help("discovery interval").scan<'i', int>();
+    program.add_argument("--localhost").help("local ip");
+
+    program.add_argument("--no-timestamp").implicit_value(true);
+    program.add_argument("--debug").implicit_value(true);
 
     try {
         program.parse_args(argc, argv);
@@ -77,24 +80,29 @@ int arguments::parse(int argc, char *argv[]) {
             parseFile(program.get<std::string>("--config"));
         }
 
-        this->mode = program.is_used("--mode") ? program.get<std::string>("--mode") : this->mode;
-        this->websocket = program.is_used("--websocket") ? program.get<std::string>("--websocket") : this->websocket;
-        this->password = program.is_used("--password") ? program.get<std::string>("--password") : this->password;
-        this->ntp = program.is_used("--ntp") ? program.get<std::string>("--ntp") : this->ntp;
-        this->restart = program.is_used("--restart") ? program.get<int>("--restart") : this->restart;
-        this->noTimestamp = program.is_used("--no-timestamp") ? program.get<bool>("--no-timestamp") : this->noTimestamp;
-        this->debug = program.is_used("--debug") ? program.get<bool>("--debug") : this->debug;
-        this->dhcp = program.is_used("--dhcp") ? program.get<std::string>("--dhcp") : this->dhcp;
-        this->sdwan = program.is_used("--sdwan") ? program.get<std::string>("--sdwan") : this->sdwan;
-        this->name = program.is_used("--name") ? program.get<std::string>("--name") : this->name;
-        this->workers = program.is_used("--workers") ? program.get<int>("--workers") : this->workers;
-        this->tun = program.is_used("--tun") ? program.get<std::string>("--tun") : this->tun;
-        this->stun = program.is_used("--stun") ? program.get<std::string>("--stun") : this->stun;
-        this->localhost = program.is_used("--localhost") ? program.get<std::string>("--localhost") : this->localhost;
-        this->udpPort = program.is_used("--port") ? program.get<int>("--port") : this->udpPort;
-        this->mtu = program.is_used("--mtu") ? program.get<int>("--mtu") : this->mtu;
-        this->discovery = program.is_used("--discovery") ? program.get<int>("--discovery") : this->discovery;
-        this->routeCost = program.is_used("--route") ? program.get<int>("--route") : this->routeCost;
+        if (program.is_used("--mode")) {
+            this->mode = program.get<std::string>("--mode");
+        }
+
+        program.set_if_used("--mode", this->mode);
+        program.set_if_used("--websocket", this->websocket);
+        program.set_if_used("--password", this->password);
+        program.set_if_used("--ntp", this->ntp);
+        program.set_if_used("--restart", this->restart);
+        program.set_if_used("--no-timestamp", this->noTimestamp);
+        program.set_if_used("--debug", this->debug);
+        program.set_if_used("--dhcp", this->dhcp);
+        program.set_if_used("--sdwan", this->sdwan);
+        program.set_if_used("--name", this->name);
+        program.set_if_used("--workers", this->workers);
+        program.set_if_used("--tun", this->tun);
+        program.set_if_used("--transport", this->transport);
+        program.set_if_used("--stun", this->stun);
+        program.set_if_used("--localhost", this->localhost);
+        program.set_if_used("--port", this->udpPort);
+        program.set_if_used("--mtu", this->mtu);
+        program.set_if_used("--discovery", this->discovery);
+        program.set_if_used("--route", this->routeCost);
 
         bool needShowUsage = [&]() {
             if (this->mode != "client" && this->mode != "server")
@@ -136,6 +144,7 @@ void arguments::parseFile(std::string cfgFile) {
             {"dhcp", [&](const std::string &value) { this->dhcp = value; }},
             {"sdwan", [&](const std::string &value) { this->sdwan = value; }},
             {"tun", [&](const std::string &value) { this->tun = value; }},
+            {"transport", [&](const std::string &value) { this->transport = value; }},
             {"stun", [&](const std::string &value) { this->stun = value; }},
             {"name", [&](const std::string &value) { this->name = value; }},
             {"workers", [&](const std::string &value) { this->workers = std::stoi(value); }},

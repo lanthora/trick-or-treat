@@ -23,6 +23,7 @@ struct arguments {
     // 客户端配置
     std::string name;
     std::string tun;
+    std::string transport;
     std::string stun;
     std::string localhost;
     int workers = 0;

@@ -2041,6 +2041,12 @@ public:
         m_suppress = suppress;
     }
 
+    template <typename T> void set_if_used(const std::string key, T &val) {
+        if (is_used(key)) {
+            val = get<T>(key);
+        }
+    }
+
 protected:
     const MutuallyExclusiveGroup *get_belonging_mutex(const Argument *arg) const {
         for (const auto &mutex : m_mutually_exclusive_groups) {
