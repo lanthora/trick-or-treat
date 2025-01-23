@@ -49,6 +49,7 @@ int serve(const arguments &args) {
         client.setLocalhost(args.localhost);
         client.setPassword(args.password);
         client.setWebSocket(args.websocket);
+        client.setTransport(args.transport);
         client.setStun(args.stun);
         client.setTunAddress(args.tun);
         client.setExptTunAddress(loadTunAddress(args.name));

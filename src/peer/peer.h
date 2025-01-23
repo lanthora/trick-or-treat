@@ -13,6 +13,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 namespace Candy {
 
@@ -26,8 +27,7 @@ public:
     int setForwardCost(int cost);
     int setPort(int port);
     int setLocalhost(const std::string &ip);
-
-    // TODO: 设置不同 P2P 类型的优先级，不设置任何 P2P 类型表示禁用 P2P
+    int setTransport(const std::vector<std::string> &transport);
 
     int run(Client *client);
     int shutdown();
@@ -64,8 +64,12 @@ private:
     Poco::Net::ServerSocket tcp4socket, tcp6socket;
     Poco::Net::PollSet pollSet;
 
+    std::vector<std::string> transport;
+
 private:
     Client *client;
+
+    friend class PeerInfo;
 };
 
 } // namespace Candy

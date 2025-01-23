@@ -13,13 +13,15 @@
 
 namespace Candy {
 
+class Peer;
+
 constexpr int32_t DELAY_LIMIT = INT32_MAX;
 constexpr int32_t RETRY_MIN = 30;
 constexpr int32_t RETRY_MAX = 3600;
 
 class PeerInfo {
 public:
-    PeerInfo(const IP4 &addr);
+    PeerInfo(const IP4 &addr, const Peer *peer);
     ~PeerInfo();
 
 public:
@@ -30,6 +32,7 @@ public:
 private:
     // 对端虚拟地址
     IP4 addr;
+    const Peer *peer;
 
 private:
     // 所有对等连接使用统一的加密方式, 为了解决 TCP 无法分包的问题,

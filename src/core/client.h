@@ -36,6 +36,7 @@ public:
     void setPassword(const std::string &password);
     void setWebSocket(const std::string &uri);
     void setTunAddress(const std::string &cidr);
+    void setTransport(const std::string &transport);
     void setStun(const std::string &stun);
     void setDiscoveryInterval(int interval);
     void setRouteCost(int cost);

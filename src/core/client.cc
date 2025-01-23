@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "core/client.h"
 #include "core/message.h"
+#include <Poco/String.h>
 #include <chrono>
 
 namespace Candy {
@@ -53,6 +54,20 @@ void Client::setExptTunAddress(const std::string &cidr) {
 
 void Client::setVirtualMac(const std::string &vmac) {
     ws.setVirtualMac(vmac);
+}
+
+void Client::setTransport(const std::string &transport) {
+    std::vector<std::string> inner_transport;
+    std::istringstream stream(transport);
+    std::string item;
+
+    while (std::getline(stream, item, ';')) {
+        item = Poco::trim(item);
+        if (!item.empty()) {
+            inner_transport.push_back(item);
+        }
+    }
+    peer.setTransport(inner_transport);
 }
 
 void Client::setStun(const std::string &stun) {
