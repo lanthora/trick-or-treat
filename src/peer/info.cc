@@ -11,21 +11,27 @@ constexpr std::size_t AES_256_GCM_KEY_LEN = 32;
 
 namespace Candy {
 
-PeerInfo::PeerInfo(const IP4 &addr, const Peer *peer) : peer(peer), addr(addr) {
+PeerInfo::PeerInfo(const IP4 &addr, Peer *peer) : peer(peer), addr(addr) {
     this->encryptCtx = std::shared_ptr<EVP_CIPHER_CTX>(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free);
 
     for (const std::string &transport : peer->transport) {
         if (transport == "UDP4") {
-            this->connectors[transport] = std::make_shared<UDP4>();
-        } else if (transport == "UDP6") {
-            this->connectors[transport] = std::make_shared<UDP6>();
-        } else if (transport == "TCP4") {
-            this->connectors[transport] = std::make_shared<TCP4>();
-        } else if (transport == "TCP6") {
-            this->connectors[transport] = std::make_shared<TCP6>();
-        } else {
-            spdlog::warn("unknown transport: {}", transport);
+            this->connectors[transport] = std::make_shared<UDP4>(this);
+            continue;
         }
+        if (transport == "UDP6") {
+            this->connectors[transport] = std::make_shared<UDP6>(this);
+            continue;
+        }
+        if (transport == "TCP4") {
+            this->connectors[transport] = std::make_shared<TCP4>(this);
+            continue;
+        }
+        if (transport == "TCP6") {
+            this->connectors[transport] = std::make_shared<TCP6>(this);
+            continue;
+        }
+        spdlog::warn("unknown transport: {}", transport);
     }
 }
 
@@ -47,9 +53,16 @@ void PeerInfo::tryConnecct() {
     for (const std::string &transport : peer->transport) {
         auto it = this->connectors.find(transport);
         if (it != this->connectors.end()) {
-            if (it->second->tryToConnect()) {
-                spdlog::debug("try to connect: protocol=[{}] peer={}", transport, this->addr.toString());
-            }
+            it->second->tryToConnect();
+        }
+    }
+}
+
+void PeerInfo::tick() {
+    for (const std::string &transport : peer->transport) {
+        auto it = this->connectors.find(transport);
+        if (it != this->connectors.end()) {
+            it->second->tick();
         }
     }
 }

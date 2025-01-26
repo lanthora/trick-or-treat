@@ -65,11 +65,15 @@ private:
     Poco::Net::PollSet pollSet;
 
     std::vector<std::string> transport;
+    bool udpStunNeeded = false;
+    bool tcpStunNeeded = false;
 
 private:
     Client *client;
 
     friend class PeerInfo;
+    friend class UDP4;
+    friend class UDP6;
 };
 
 } // namespace Candy

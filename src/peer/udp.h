@@ -18,16 +18,31 @@ enum class UdpPeerState {
 
 class UDP : public Connector {
 public:
+    UDP(PeerInfo *info) : Connector(info) {}
+
     bool isConnected() const;
     bool tryToConnect();
 
-private:
+protected:
     UdpPeerState state = UdpPeerState::INIT;
+    std::string stateString() const;
+    std::string stateString(UdpPeerState state) const;
+    void updateState(UdpPeerState state);
 };
 
-class UDP4 : public UDP {};
+class UDP4 : public UDP {
+public:
+    UDP4(PeerInfo *info) : UDP(info) {}
+    std::string name();
+    void tick();
+};
 
-class UDP6 : public UDP {};
+class UDP6 : public UDP {
+public:
+    UDP6(PeerInfo *info) : UDP(info) {}
+    std::string name();
+    void tick();
+};
 
 } // namespace Candy
 

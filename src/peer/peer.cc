@@ -141,7 +141,7 @@ void Peer::handleTryP2P(Msg msg) {
         {
             // 单独的作用域内加锁，否则造成死锁
             std::unique_lock lock(this->ipPeerMutex);
-            this->ipPeerMap.emplace(src, std::move(PeerInfo(src, this)));
+            this->ipPeerMap.emplace(std::piecewise_construct, std::forward_as_tuple(src), std::forward_as_tuple(src, this));
         }
         this->ipPeerMutex.lock_shared();
         // 释放写锁重新获取读锁的过程中迭代器可能失效,需要重新获取
@@ -157,10 +157,16 @@ void Peer::handleTryP2P(Msg msg) {
 }
 
 void Peer::tick() {
-    spdlog::trace("tick: {}", getCurrentTimeWithMillis());
+    {
+        std::shared_lock ipPeerLock(this->ipPeerMutex);
+        for (auto &[ip, peer] : this->ipPeerMap) {
+            peer.tick();
+        }
+    }
 
-    // TODO: 替换成真实操作,这里模拟 500 ms 的耗时操作
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    if (udpStunNeeded) {
+        udpStunNeeded = false;
+    }
 }
 
 int Peer::initSocket() {

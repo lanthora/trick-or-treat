@@ -2,12 +2,30 @@
 #ifndef CANDY_PEER_CONNECTOR_H
 #define CANDY_PEER_CONNECTOR_H
 
+#include <chrono>
+#include <string>
+
 namespace Candy {
+
+class PeerInfo;
 
 class Connector {
 public:
+    Connector(PeerInfo *info) : info(info) {}
+
     virtual bool isConnected() const = 0;
     virtual bool tryToConnect() = 0;
+    virtual void tick() = 0;
+    virtual std::string name() = 0;
+    std::string address();
+
+protected:
+    void refreshActiveTime();
+    bool isActiveIn(std::chrono::system_clock::duration duration);
+    PeerInfo *info;
+
+private:
+    std::chrono::system_clock::time_point lastActiveTime;
 };
 
 } // namespace Candy
