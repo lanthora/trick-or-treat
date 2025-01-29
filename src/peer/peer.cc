@@ -92,6 +92,9 @@ void Peer::handlePeerQueue() {
     case MsgKind::TRYP2P:
         handleTryP2P(std::move(msg));
         break;
+    case MsgKind::PUBINFO:
+        handlePubInfo(std::move(msg));
+        break;
     default:
         spdlog::warn("unexcepted peer message type: {}", static_cast<int>(msg.kind));
         break;
@@ -154,6 +157,26 @@ void Peer::handleTryP2P(Msg msg) {
     it->second.tryConnecct();
 }
 
+void Peer::handlePubInfo(Msg msg) {
+    CoreMsg::PubInfo *info = (CoreMsg::PubInfo *)(msg.data.data());
+
+    if (info->src == this->client->address() || info->dst != this->client->address()) {
+        spdlog::warn("invalid public info: src=[{}] dst=[{}]", info->src.toString(), info->dst.toString());
+        return;
+    }
+
+    std::shared_lock ipPeerLock(this->ipPeerMutex);
+    auto it = this->ipPeerMap.find(info->src);
+    if (it == this->ipPeerMap.end()) {
+        spdlog::warn("can not find src peer: {}", info->src.toString());
+        return;
+    }
+
+    if (!info->v6 && !info->tcp && !info->local) {
+        it->second.handleUdp4Conn(info->ip, info->port);
+    }
+}
+
 void Peer::tick() {
     {
         std::shared_lock ipPeerLock(this->ipPeerMutex);
@@ -196,6 +219,8 @@ int Peer::initSocket() {
     }
 }
 
-std::optional<std::string> Peer::decrypt(const std::string &ciphertext) {}
+std::optional<std::string> Peer::decrypt(const std::string &ciphertext) {
+    return std::nullopt;
+}
 
 } // namespace Candy

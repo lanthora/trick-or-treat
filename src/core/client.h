@@ -59,6 +59,7 @@ public:
     bool running = false;
 
     std::string getName() const;
+    IP4 address();
 
 public:
     //  三个消息队列,子模块使用这些队列通信

@@ -23,7 +23,7 @@ void UDP::updateState(UdpPeerState state) {
         return;
     }
 
-    spdlog::debug("state: {} {} {} => {}", this->address(), this->name(), stateString(), stateString(state));
+    spdlog::debug("state: {} {} {} => {}", this->address().toString(), this->name(), stateString(), stateString(state));
     this->state = state;
 }
 
@@ -48,12 +48,23 @@ std::string UDP::stateString(UdpPeerState state) const {
     case UdpPeerState::FAILED:
         return "FAILED";
     default:
-        return "Unknown";
+        return "UNKNOWN";
     }
 }
 
 std::string UDP4::name() {
     return "UDP4";
+}
+
+void UDP4::updateInfo(IP4 ip, uint16_t port, bool local) {
+    if (local) {
+        this->local.ip = ip;
+        this->local.port = port;
+        return;
+    }
+
+    this->wide.ip = ip;
+    this->wide.port = port;
 }
 
 void UDP4::tick() {

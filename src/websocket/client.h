@@ -37,6 +37,7 @@ private:
     void handleWsMsg(std::string buffer);
     void handleForwardMsg(std::string buffer);
     void handleExptTunMsg(std::string buffer);
+    void handleUdp4ConnMsg(std::string buffer);
     void handleDiscoveryMsg(std::string buffer);
     void handleRouteMsg(std::string buffer);
     std::thread wsThread;

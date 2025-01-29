@@ -64,6 +64,7 @@ int WebSocketClient::run(Client *client) {
     if (connect()) {
         spdlog::critical("websocket client connect failed");
         Candy::shutdown(this->client);
+        return -1;
     }
 
     sendVirtualMacMsg();
@@ -177,6 +178,7 @@ void WebSocketClient::handleWsMsg(std::string buffer) {
         handleExptTunMsg(std::move(buffer));
         break;
     case WsMsgKind::UDP4CONN:
+        handleUdp4ConnMsg(std::move(buffer));
         break;
     case WsMsgKind::DISCOVERY:
         handleDiscoveryMsg(std::move(buffer));
@@ -218,6 +220,16 @@ void WebSocketClient::handleExptTunMsg(std::string buffer) {
     sendAuthMsg();
 }
 
+void WebSocketClient::handleUdp4ConnMsg(std::string buffer) {
+    if (buffer.size() < sizeof(WsMsg::Udp4Conn)) {
+        spdlog::warn("invalid udp4conn message: {:n}", spdlog::to_hex(buffer));
+        return;
+    }
+    WsMsg::Udp4Conn *header = (WsMsg::Udp4Conn *)buffer.data();
+    CoreMsg::PubInfo info = {.src = header->src, .dst = header->dst, .ip = header->ip, .port = ntoh(header->port)};
+    this->client->peerMsgQueue.write(Msg(MsgKind::PUBINFO, std::string((char *)(&info), sizeof(info))));
+}
+
 void WebSocketClient::handleDiscoveryMsg(std::string buffer) {
     if (buffer.size() < sizeof(WsMsg::Discovery)) {
         spdlog::warn("invalid discovery message: {:n}", spdlog::to_hex(buffer));
@@ -247,7 +259,13 @@ void WebSocketClient::sendFrame(const std::string &buffer, int flags) {
 }
 
 void WebSocketClient::sendFrame(const void *buffer, int length, int flags) {
-    this->ws->sendFrame(buffer, length, flags);
+    if (this->ws) {
+        try {
+            this->ws->sendFrame(buffer, length, flags);
+        } catch (std::exception &e) {
+            spdlog::critical("websocket send frame failed: {}", e.what());
+        }
+    }
 }
 
 void WebSocketClient::sendVirtualMacMsg() {

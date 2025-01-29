@@ -40,6 +40,7 @@ private:
     void handlePeerQueue();
     void handlePacket(Msg msg);
     void handleTryP2P(Msg msg);
+    void handlePubInfo(Msg msg);
 
     std::thread msgThread;
 

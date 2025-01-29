@@ -2,6 +2,7 @@
 #ifndef CANDY_PEER_CONNECTOR_H
 #define CANDY_PEER_CONNECTOR_H
 
+#include "core/net.h"
 #include <chrono>
 #include <string>
 
@@ -17,7 +18,7 @@ public:
     virtual bool tryToConnect() = 0;
     virtual void tick() = 0;
     virtual std::string name() = 0;
-    std::string address();
+    IP4 address();
 
 protected:
     void refreshActiveTime();

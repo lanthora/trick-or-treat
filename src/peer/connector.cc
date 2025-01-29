@@ -3,8 +3,8 @@
 
 namespace Candy {
 
-std::string Connector::address() {
-    return this->info->addr.toString();
+IP4 Connector::address() {
+    return this->info->addr;
 }
 
 void Connector::refreshActiveTime() {

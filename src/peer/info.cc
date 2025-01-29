@@ -85,6 +85,16 @@ int PeerInfo::send(const std::string &data) {
     return -1;
 }
 
+void PeerInfo::handleUdp4Conn(IP4 ip, uint16_t port) {
+    auto it = this->connectors.find("UDP4");
+    if (it == this->connectors.end()) {
+        return;
+    }
+
+    std::shared_ptr<UDP4> conn = std::dynamic_pointer_cast<UDP4>(it->second);
+    conn->updateInfo(ip, port);
+}
+
 std::optional<std::string> PeerInfo::encrypt(const std::string &plaintext) {
     int len = 0;
     int ciphertextLen = 0;

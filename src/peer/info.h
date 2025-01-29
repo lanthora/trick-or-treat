@@ -31,6 +31,8 @@ public:
     void tick();
     int send(const std::string &data);
 
+    void handleUdp4Conn(IP4 ip, uint16_t port);
+
 private:
     // 对端虚拟地址
     IP4 addr;

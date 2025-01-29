@@ -25,8 +25,9 @@ public:
     int run(Client *client);
     int shutdown();
 
-private:
     IP4 getIP();
+
+private:
     int setAddress(const std::string &cidr);
 
     // 处理来自 TUN 设备的数据

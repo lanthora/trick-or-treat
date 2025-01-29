@@ -96,6 +96,7 @@ set(CANDY_EXECUTE_NAME "candy")
 set(CANDY_LIBRARY_NAME "libcandy")
 
 add_compile_definitions(CANDY_VERSION="${PROJECT_VERSION}")
+add_compile_options("-Wfatal-errors")
 
 include_directories(${PROJECT_SOURCE_DIR}/src)
 

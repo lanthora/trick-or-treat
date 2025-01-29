@@ -2,6 +2,7 @@
 #ifndef CANDY_PEER_UDP_H
 #define CANDY_PEER_UDP_H
 
+#include "core/net.h"
 #include "peer/connector.h"
 
 namespace Candy {
@@ -33,14 +34,25 @@ protected:
 class UDP4 : public UDP {
 public:
     UDP4(PeerInfo *info) : UDP(info) {}
+
     std::string name();
+    void updateInfo(IP4 ip, uint16_t port, bool local = false);
+
     void tick();
+
+private:
+    struct {
+        IP4 ip;
+        uint16_t port = 0;
+    } wide, local, real;
 };
 
 class UDP6 : public UDP {
 public:
     UDP6(PeerInfo *info) : UDP(info) {}
+
     std::string name();
+
     void tick();
 };
 

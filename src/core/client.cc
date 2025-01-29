@@ -35,6 +35,10 @@ std::string Client::getName() const {
     return this->tunName;
 }
 
+IP4 Client::address() {
+    return this->tun.getIP();
+}
+
 void Client::setPassword(const std::string &password) {
     ws.setPassword(password);
     peer.setPassword(password);
