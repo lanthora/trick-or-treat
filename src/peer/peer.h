@@ -33,6 +33,9 @@ public:
     int shutdown();
 
 private:
+    std::string password;
+
+private:
     // 处理来自消息队列的数据
     void handlePeerQueue();
     void handlePacket(Msg msg);
@@ -56,6 +59,8 @@ private:
 
 private:
     int initSocket();
+    std::optional<std::string> decrypt(const std::string &ciphertext);
+
     // 默认监听端口,如果不配置,随机监听
     uint16_t listenPort = 0;
 

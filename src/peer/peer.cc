@@ -12,6 +12,7 @@
 namespace Candy {
 
 int Peer::setPassword(const std::string &password) {
+    this->password = password;
     return 0;
 }
 
@@ -136,15 +137,12 @@ void Peer::handleTryP2P(Msg msg) {
     std::shared_lock ipPeerLock(this->ipPeerMutex);
     auto it = this->ipPeerMap.find(src);
     if (it == this->ipPeerMap.end()) {
-        // 释放读锁临时加写锁修改 ipPeerMap
         this->ipPeerMutex.unlock_shared();
         {
-            // 单独的作用域内加锁，否则造成死锁
             std::unique_lock lock(this->ipPeerMutex);
             this->ipPeerMap.emplace(std::piecewise_construct, std::forward_as_tuple(src), std::forward_as_tuple(src, this));
         }
         this->ipPeerMutex.lock_shared();
-        // 释放写锁重新获取读锁的过程中迭代器可能失效,需要重新获取
         it = this->ipPeerMap.find(src);
     }
 
@@ -197,5 +195,7 @@ int Peer::initSocket() {
         return -1;
     }
 }
+
+std::optional<std::string> Peer::decrypt(const std::string &ciphertext) {}
 
 } // namespace Candy

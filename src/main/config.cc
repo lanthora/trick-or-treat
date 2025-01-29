@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "main/config.h"
 #include "core/version.h"
-#include "main/config.h"
 #include "utility/argparse.h"
 #include "utility/random.h"
 #include <Poco/Platform.h>
