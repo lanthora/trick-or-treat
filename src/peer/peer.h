@@ -5,6 +5,7 @@
 #include "core/message.h"
 #include "core/net.h"
 #include "peer/info.h"
+#include "peer/message.h"
 #include <Poco/Net/DatagramSocket.h>
 #include <Poco/Net/PollSet.h>
 #include <Poco/Net/ServerSocket.h>
@@ -18,6 +19,12 @@
 namespace Candy {
 
 class Client;
+
+struct Stun {
+    std::string uri;
+    Poco::Net::SocketAddress address;
+    bool needed = false;
+};
 
 class Peer {
 public:
@@ -60,6 +67,8 @@ private:
 
 private:
     int initSocket();
+    void sendUdpStunRequest();
+
     std::optional<std::string> decrypt(const std::string &ciphertext);
 
     // 默认监听端口,如果不配置,随机监听
@@ -71,8 +80,10 @@ private:
     Poco::Net::PollSet pollSet;
 
     std::vector<std::string> transport;
-    bool udpStunNeeded = false;
-    bool tcpStunNeeded = false;
+
+    std::thread pollThread;
+
+    Stun udpStun;
 
 private:
     Client *client;

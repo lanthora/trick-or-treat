@@ -65,6 +65,21 @@ void UDP4::updateInfo(IP4 ip, uint16_t port, bool local) {
 
     this->wide.ip = ip;
     this->wide.port = port;
+
+    if (this->state == UdpPeerState::CONNECTED) {
+        return;
+    }
+
+    if (this->state == UdpPeerState::SYNCHRONIZING) {
+        updateState(UdpPeerState::CONNECTING);
+        return;
+    }
+
+    if (this->state != UdpPeerState::CONNECTING) {
+        updateState(UdpPeerState::PREPARING);
+        // TODO: sendLocalConnMessage()
+        return;
+    }
 }
 
 void UDP4::tick() {
@@ -73,7 +88,7 @@ void UDP4::tick() {
         break;
     case UdpPeerState::PREPARING:
         if (isActiveIn(std::chrono::seconds(10))) {
-            this->info->peer->udpStunNeeded = true;
+            this->info->peer->udpStun.needed = true;
         } else {
             updateState(UdpPeerState::FAILED);
         }

@@ -6,6 +6,8 @@
 #include "peer/message.h"
 #include "utility/time.h"
 #include <Poco/Net/NetException.h>
+#include <Poco/Timespan.h>
+#include <Poco/URI.h>
 #include <shared_mutex>
 #include <spdlog/spdlog.h>
 
@@ -17,6 +19,7 @@ int Peer::setPassword(const std::string &password) {
 }
 
 int Peer::setStun(const std::string &stun) {
+    this->udpStun.uri = stun;
     return 0;
 }
 
@@ -77,6 +80,9 @@ int Peer::shutdown() {
     }
     if (this->tickThread.joinable()) {
         this->tickThread.join();
+    }
+    if (this->pollThread.joinable()) {
+        this->pollThread.join();
     }
     return 0;
 }
@@ -185,15 +191,16 @@ void Peer::tick() {
         }
     }
 
-    if (udpStunNeeded) {
-        udpStunNeeded = false;
+    if (this->udpStun.needed) {
+        sendUdpStunRequest();
+        this->udpStun.needed = false;
     }
 }
 
 int Peer::initSocket() {
     using Poco::Net::AddressFamily;
+    using Poco::Net::PollSet;
     using Poco::Net::SocketAddress;
-    using Poco::Net::PollSet::POLL_READ;
 
     try {
         this->udp4socket.bind(SocketAddress(AddressFamily::IPv4, this->listenPort), true);
@@ -207,15 +214,64 @@ int Peer::initSocket() {
         spdlog::info("ipv4 listen port: udp=[{}] tcp=[{}]", this->udp4socket.address().port(), this->tcp4socket.address().port());
         spdlog::info("ipv6 listen port: udp=[{}] tcp=[{}]", this->udp6socket.address().port(), this->tcp6socket.address().port());
 
-        this->pollSet.add(this->udp4socket, POLL_READ);
-        this->pollSet.add(this->udp6socket, POLL_READ);
-        this->pollSet.add(this->tcp4socket, POLL_READ);
-        this->pollSet.add(this->tcp6socket, POLL_READ);
-
-        return 0;
+        this->pollSet.add(this->udp4socket, PollSet::POLL_READ);
+        this->pollSet.add(this->udp6socket, PollSet::POLL_READ);
+        this->pollSet.add(this->tcp4socket, PollSet::POLL_READ);
+        this->pollSet.add(this->tcp6socket, PollSet::POLL_READ);
     } catch (Poco::Net::NetException &e) {
         spdlog::critical("peer init socket failed: {}: {}", e.what(), e.message());
         return -1;
+    }
+
+    this->pollThread = std::thread([&]() {
+        while (this->client->running) {
+            PollSet::SocketModeMap socketModeMap = this->pollSet.poll(Poco::Timespan(1, 0));
+            for (auto &pair : socketModeMap) {
+                if (pair.second & PollSet::POLL_READ) {
+                    if (pair.first == tcp4socket) {
+                        Poco::Net::Socket clientSocket = tcp4socket.acceptConnection();
+                        pollSet.add(clientSocket, PollSet::POLL_READ);
+                        continue;
+                    }
+                    if (pair.first == tcp6socket) {
+                        Poco::Net::Socket clientSocket = tcp6socket.acceptConnection();
+                        pollSet.add(clientSocket, PollSet::POLL_READ);
+                        continue;
+                    }
+                    if (pair.first == udp4socket) {
+                        std::string buffer(1500, 0);
+                        Poco::Net::SocketAddress address;
+                        udp4socket.receiveFrom(buffer.data(), buffer.size(), address);
+                        if (this->udpStun.address == address) {
+                            spdlog::info("udp4socket stun response: {}", address.toString());
+                        } else {
+                            spdlog::info("udp4socket received message: {}", address.toString());
+                        }
+                        continue;
+                    }
+                    if (pair.first == udp6socket) {
+                        continue;
+                    }
+                }
+            }
+        }
+    });
+    return 0;
+}
+
+void Peer::sendUdpStunRequest() {
+    try {
+        Poco::URI uri(this->udpStun.uri);
+        if (!uri.getPort()) {
+            uri.setPort(3478);
+        }
+        StunRequest request;
+        this->udpStun.address = Poco::Net::SocketAddress(uri.getHost(), uri.getPort());
+        if (this->udp4socket.sendTo(&request, sizeof(request), this->udpStun.address) != sizeof(request)) {
+            spdlog::warn("the stun request was not completely sent");
+        }
+    } catch (std::exception &e) {
+        spdlog::debug("send stun request failed: {}", e.what());
     }
 }
 
