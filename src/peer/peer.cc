@@ -9,6 +9,7 @@
 #include <Poco/Timespan.h>
 #include <Poco/URI.h>
 #include <shared_mutex>
+#include <spdlog/fmt/bin_to_hex.h>
 #include <spdlog/spdlog.h>
 
 namespace Candy {
@@ -130,6 +131,16 @@ int Peer::sendTo(IP4 dst, const Msg &msg) {
     return info.send(data);
 }
 
+int Peer::sendPubInfo(CoreMsg::PubInfo info) {
+    info.src = this->client->address();
+    if (!info.v6 && !info.tcp && !info.local) {
+        info.ip = this->udpStun.ip;
+        info.port = this->udpStun.port;
+    }
+    this->client->wsMsgQueue.write(Msg(MsgKind::PUBINFO, std::string((char *)(&info), sizeof(info))));
+    return 0;
+}
+
 void Peer::handlePacket(Msg msg) {
     IP4Header *header = (IP4Header *)msg.data.data();
     // 尝试 P2P 转发流量
@@ -225,35 +236,7 @@ int Peer::initSocket() {
 
     this->pollThread = std::thread([&]() {
         while (this->client->running) {
-            PollSet::SocketModeMap socketModeMap = this->pollSet.poll(Poco::Timespan(1, 0));
-            for (auto &pair : socketModeMap) {
-                if (pair.second & PollSet::POLL_READ) {
-                    if (pair.first == tcp4socket) {
-                        Poco::Net::Socket clientSocket = tcp4socket.acceptConnection();
-                        pollSet.add(clientSocket, PollSet::POLL_READ);
-                        continue;
-                    }
-                    if (pair.first == tcp6socket) {
-                        Poco::Net::Socket clientSocket = tcp6socket.acceptConnection();
-                        pollSet.add(clientSocket, PollSet::POLL_READ);
-                        continue;
-                    }
-                    if (pair.first == udp4socket) {
-                        std::string buffer(1500, 0);
-                        Poco::Net::SocketAddress address;
-                        udp4socket.receiveFrom(buffer.data(), buffer.size(), address);
-                        if (this->udpStun.address == address) {
-                            spdlog::info("udp4socket stun response: {}", address.toString());
-                        } else {
-                            spdlog::info("udp4socket received message: {}", address.toString());
-                        }
-                        continue;
-                    }
-                    if (pair.first == udp6socket) {
-                        continue;
-                    }
-                }
-            }
+            poll();
         }
     });
     return 0;
@@ -272,6 +255,98 @@ void Peer::sendUdpStunRequest() {
         }
     } catch (std::exception &e) {
         spdlog::debug("send stun request failed: {}", e.what());
+    }
+}
+
+void Peer::handleUdpStunResponse(const std::string &buffer) {
+    if (buffer.length() < sizeof(StunResponse)) {
+        spdlog::debug("invalid stun response length: {}", buffer.length());
+        return;
+    }
+    StunResponse *response = (StunResponse *)buffer.c_str();
+    if (ntoh(response->type) != 0x0101) {
+        spdlog::debug("invalid stun reponse type: {}", ntoh(response->type));
+        return;
+    }
+
+    int pos = 0;
+    uint32_t ip = 0;
+    uint16_t port = 0;
+    uint8_t *attr = response->attr;
+    while (pos < ntoh(response->length)) {
+        // mapped address
+        if (ntoh(*(uint16_t *)(attr + pos)) == 0x0001) {
+            pos += 6; // 跳过 2 字节类型, 2 字节长度, 1 字节保留, 1 字节IP版本号,指向端口号
+            port = ntoh(*(uint16_t *)(attr + pos));
+            pos += 2; // 跳过2字节端口号,指向地址
+            ip = *(uint32_t *)(attr + pos);
+            break;
+        }
+        // xor mapped address
+        if (ntoh(*(uint16_t *)(attr + pos)) == 0x0020) {
+            pos += 6; // 跳过 2 字节类型, 2 字节长度, 1 字节保留, 1 字节IP版本号,指向端口号
+            port = ntoh(*(uint16_t *)(attr + pos)) ^ 0x2112;
+            pos += 2; // 跳过2字节端口号,指向地址
+            ip = (*(uint32_t *)(attr + pos)) ^ hton(0x2112a442);
+            break;
+        }
+        // 跳过 2 字节类型,指向属性长度
+        pos += 2;
+        // 跳过 2 字节长度和用该属性其他内容
+        pos += 2 + ntoh(*(uint16_t *)(attr + pos));
+    }
+    if (!ip || !port) {
+        spdlog::warn("stun response parse failed: {:n}", spdlog::to_hex(buffer));
+        return;
+    }
+
+    memcpy(&this->udpStun.ip, &ip, sizeof(this->udpStun.ip));
+    this->udpStun.port = port;
+
+    // 收到 STUN 响应后,向所有 PREPARING 状态的对端发送自己的公网信息,如果当前持有对端公网信息,就将状态调整为 CONNECTING,
+    // 否则调整为 SYNCHRONIZING
+    std::shared_lock lock(this->ipPeerMutex);
+    for (auto &[tun, peer] : this->ipPeerMap) {
+        peer.handleUdpStunResponse();
+    }
+
+    return;
+}
+
+void Peer::poll() {
+    using Poco::Net::PollSet;
+    using Poco::Net::Socket;
+    using Poco::Net::SocketAddress;
+
+    PollSet::SocketModeMap socketModeMap = this->pollSet.poll(Poco::Timespan(1, 0));
+    for (auto &pair : socketModeMap) {
+        if (pair.second & PollSet::POLL_READ) {
+            if (pair.first == tcp4socket) {
+                Socket clientSocket = tcp4socket.acceptConnection();
+                pollSet.add(clientSocket, PollSet::POLL_READ);
+                continue;
+            }
+            if (pair.first == tcp6socket) {
+                Socket clientSocket = tcp6socket.acceptConnection();
+                pollSet.add(clientSocket, PollSet::POLL_READ);
+                continue;
+            }
+            if (pair.first == udp4socket) {
+                std::string buffer(1500, 0);
+                SocketAddress address;
+                auto size = udp4socket.receiveFrom(buffer.data(), buffer.size(), address);
+                buffer.resize(size);
+                if (this->udpStun.address == address) {
+                    handleUdpStunResponse(buffer);
+                } else {
+                    spdlog::info("udp4socket received message: {}", address.toString());
+                }
+                continue;
+            }
+            if (pair.first == udp6socket) {
+                continue;
+            }
+        }
     }
 }
 

@@ -102,6 +102,9 @@ void WebSocketClient::handleWsQueue() {
     case MsgKind::PACKET:
         handlePacket(std::move(msg));
         break;
+    case MsgKind::PUBINFO:
+        handlePubInfo(std::move(msg));
+        break;
     default:
         spdlog::warn("unexcepted websocket message type: {}", static_cast<int>(msg.kind));
         break;
@@ -112,7 +115,19 @@ void WebSocketClient::handlePacket(Msg msg) {
     IP4Header *header = (IP4Header *)msg.data.data();
 
     msg.data.insert(0, 1, WsMsgKind::FORWARD);
-    sendFrame(msg.data, Poco::Net::WebSocket::FRAME_BINARY);
+    sendFrame(msg.data);
+}
+
+void WebSocketClient::handlePubInfo(Msg msg) {
+    CoreMsg::PubInfo *info = (CoreMsg::PubInfo *)(msg.data.data());
+    if (!info->v6 && !info->tcp && !info->local) {
+        WsMsg::Udp4Conn buffer;
+        buffer.src = info->src;
+        buffer.dst = info->dst;
+        buffer.ip = info->ip;
+        buffer.port = hton(info->port);
+        sendFrame(&buffer, sizeof(buffer));
+    }
 }
 
 void WebSocketClient::handleWsConn() {

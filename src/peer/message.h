@@ -28,6 +28,14 @@ struct StunRequest {
     } attr;
 };
 
+struct StunResponse {
+    uint16_t type;
+    uint16_t length;
+    uint32_t cookie;
+    uint8_t id[12];
+    uint8_t attr[0];
+};
+
 } // namespace Candy
 
 #endif

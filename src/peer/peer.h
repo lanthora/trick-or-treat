@@ -24,6 +24,8 @@ struct Stun {
     std::string uri;
     Poco::Net::SocketAddress address;
     bool needed = false;
+    IP4 ip;
+    uint16_t port;
 };
 
 class Peer {
@@ -53,6 +55,7 @@ private:
 
     // 处理 PACKET 报文,并判断目标是否可达
     int sendTo(IP4 dst, const Msg &msg);
+    int sendPubInfo(CoreMsg::PubInfo info);
 
 private:
     void tick();
@@ -68,6 +71,8 @@ private:
 private:
     int initSocket();
     void sendUdpStunRequest();
+    void handleUdpStunResponse(const std::string &buffer);
+    void poll();
 
     std::optional<std::string> decrypt(const std::string &ciphertext);
 
@@ -80,9 +85,7 @@ private:
     Poco::Net::PollSet pollSet;
 
     std::vector<std::string> transport;
-
     std::thread pollThread;
-
     Stun udpStun;
 
 private:

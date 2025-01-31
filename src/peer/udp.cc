@@ -1,4 +1,5 @@
 #include "peer/udp.h"
+#include "core/message.h"
 #include "peer/info.h"
 #include "peer/peer.h"
 #include "spdlog/spdlog.h"
@@ -82,6 +83,19 @@ void UDP4::updateInfo(IP4 ip, uint16_t port, bool local) {
     }
 }
 
+void UDP4::handleStunResponse() {
+    if (this->state != UdpPeerState::PREPARING) {
+        return;
+    }
+    if (this->wide.ip.empty() || this->wide.port == 0) {
+        updateState(UdpPeerState::SYNCHRONIZING);
+    } else {
+        updateState(UdpPeerState::CONNECTING);
+    }
+    CoreMsg::PubInfo info = {.dst = this->address()};
+    this->info->peer->sendPubInfo(info);
+}
+
 void UDP4::tick() {
     switch (this->state) {
     case UdpPeerState::INIT:
@@ -119,6 +133,7 @@ void UDP4::tick() {
         break;
     case UdpPeerState::WAITING:
         // TODO: 根据指数退避算法判定是否需要回到 INIT 状态
+        updateState(UdpPeerState::FAILED);
         break;
     case UdpPeerState::FAILED:
         break;

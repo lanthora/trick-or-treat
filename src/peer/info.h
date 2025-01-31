@@ -32,6 +32,7 @@ public:
     int send(const std::string &data);
 
     void handleUdp4Conn(IP4 ip, uint16_t port);
+    void handleUdpStunResponse();
 
 private:
     // 对端虚拟地址

@@ -29,6 +29,8 @@ protected:
     std::string stateString() const;
     std::string stateString(UdpPeerState state) const;
     void updateState(UdpPeerState state);
+
+    bool ack = false;
 };
 
 class UDP4 : public UDP {
@@ -37,10 +39,11 @@ public:
 
     std::string name();
     void updateInfo(IP4 ip, uint16_t port, bool local = false);
-
+    void handleStunResponse();
     void tick();
 
 private:
+    void sendHeartbeat();
     struct {
         IP4 ip;
         uint16_t port = 0;

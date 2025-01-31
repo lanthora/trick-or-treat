@@ -30,6 +30,7 @@ public:
 private:
     void handleWsQueue();
     void handlePacket(Msg msg);
+    void handlePubInfo(Msg msg);
 
     std::thread msgThread;
 
