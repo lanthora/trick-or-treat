@@ -40,6 +40,7 @@ public:
     int fromPrefix(int prefix);
     int toPrefix();
     bool empty() const;
+    void reset();
 
 private:
     std::array<uint8_t, 4> raw;

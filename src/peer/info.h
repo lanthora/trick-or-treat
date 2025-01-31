@@ -16,10 +16,6 @@ namespace Candy {
 
 class Peer;
 
-constexpr int32_t DELAY_LIMIT = INT32_MAX;
-constexpr int32_t RETRY_MIN = 30;
-constexpr int32_t RETRY_MAX = 3600;
-
 class PeerInfo {
 public:
     PeerInfo(const IP4 &addr, Peer *peer);

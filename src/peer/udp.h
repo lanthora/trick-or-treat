@@ -7,6 +7,10 @@
 
 namespace Candy {
 
+constexpr int32_t DELAY_LIMIT = INT32_MAX;
+constexpr uint32_t RETRY_MIN = 30;
+constexpr uint32_t RETRY_MAX = 3600;
+
 enum class UdpPeerState {
     INIT,          // 默认状态
     PREPARING,     // 开始尝试建立对等连接
@@ -29,8 +33,11 @@ protected:
     std::string stateString() const;
     std::string stateString(UdpPeerState state) const;
     void updateState(UdpPeerState state);
+    virtual void resetState() = 0;
 
-    bool ack = false;
+    uint8_t ack = 0;
+    uint32_t retry = RETRY_MIN;
+    int32_t delay = DELAY_LIMIT;
 };
 
 class UDP4 : public UDP {
@@ -42,21 +49,30 @@ public:
     void handleStunResponse();
     void tick();
 
+protected:
+    void resetState();
+
 private:
     void sendHeartbeat();
+
     struct {
         IP4 ip;
         uint16_t port = 0;
+        void reset() {
+            ip.reset();
+            port = 0;
+        }
     } wide, local, real;
 };
 
 class UDP6 : public UDP {
 public:
     UDP6(PeerInfo *info) : UDP(info) {}
-
     std::string name();
-
     void tick();
+
+protected:
+    void resetState() {}
 };
 
 } // namespace Candy

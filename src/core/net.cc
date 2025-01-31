@@ -96,6 +96,10 @@ bool IP4::empty() const {
     return raw[0] == 0 && raw[1] == 0 && raw[2] == 0 && raw[3] == 0;
 }
 
+void IP4::reset() {
+    this->raw.fill(0);
+}
+
 bool IP4Header::isIPv4() {
     return true;
 }

@@ -339,7 +339,10 @@ void Peer::poll() {
                 if (this->udpStun.address == address) {
                     handleUdpStunResponse(buffer);
                 } else {
-                    spdlog::info("udp4socket received message: {}", address.toString());
+                    auto plaintext = decrypt(buffer);
+                    if (plaintext) {
+                        spdlog::info("udp4socket received message: {}", address.toString());
+                    }
                 }
                 continue;
             }

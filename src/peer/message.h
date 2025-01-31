@@ -36,6 +36,18 @@ struct StunResponse {
     uint8_t attr[0];
 };
 
+namespace PeerMsg {
+
+struct Heartbeat {
+    uint8_t kind;
+    uint32_t ip;
+    uint32_t _ip;
+    uint16_t _port;
+    uint8_t ack;
+} __attribute__((packed));
+
+} // namespace PeerMsg
+
 } // namespace Candy
 
 #endif

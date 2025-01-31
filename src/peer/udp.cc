@@ -1,8 +1,10 @@
 #include "peer/udp.h"
+#include "core/client.h"
 #include "core/message.h"
 #include "peer/info.h"
 #include "peer/peer.h"
-#include "spdlog/spdlog.h"
+#include <algorithm>
+#include <spdlog/spdlog.h>
 
 namespace Candy {
 
@@ -25,6 +27,17 @@ void UDP::updateState(UdpPeerState state) {
     }
 
     spdlog::debug("state: {} {} {} => {}", this->address().toString(), this->name(), stateString(), stateString(state));
+
+    if (state == UdpPeerState::INIT || state == UdpPeerState::WAITING || state == UdpPeerState::FAILED) {
+        resetState();
+    }
+
+    if (this->state == UdpPeerState::WAITING && state == UdpPeerState::INIT) {
+        this->retry = std::min(this->retry * 2, RETRY_MAX);
+    } else if (state == UdpPeerState::INIT || state == UdpPeerState::FAILED) {
+        this->retry = RETRY_MIN;
+    }
+
     this->state = state;
 }
 
@@ -78,7 +91,8 @@ void UDP4::updateInfo(IP4 ip, uint16_t port, bool local) {
 
     if (this->state != UdpPeerState::CONNECTING) {
         updateState(UdpPeerState::PREPARING);
-        // TODO: sendLocalConnMessage()
+        CoreMsg::PubInfo info = {.dst = this->address(), .local = true};
+        this->info->peer->sendPubInfo(info);
         return;
     }
 }
@@ -109,14 +123,14 @@ void UDP4::tick() {
         break;
     case UdpPeerState::SYNCHRONIZING:
         if (isActiveIn(std::chrono::seconds(10))) {
-            // TODO: 发送心跳
+            sendHeartbeat();
         } else {
             updateState(UdpPeerState::FAILED);
         }
         break;
     case UdpPeerState::CONNECTING:
         if (isActiveIn(std::chrono::seconds(10))) {
-            // TODO: 发送心跳
+            sendHeartbeat();
         } else {
             updateState(UdpPeerState::WAITING);
         }
@@ -124,7 +138,7 @@ void UDP4::tick() {
     case UdpPeerState::CONNECTED:
         // 进行超时检测,超时后清空对端信息,否则发送心跳
         if (isActiveIn(std::chrono::seconds(3))) {
-            // TODO: 发送心跳
+            sendHeartbeat();
             // TODO: 检测延迟
         } else {
             updateState(UdpPeerState::INIT);
@@ -132,14 +146,53 @@ void UDP4::tick() {
         }
         break;
     case UdpPeerState::WAITING:
-        // TODO: 根据指数退避算法判定是否需要回到 INIT 状态
-        updateState(UdpPeerState::FAILED);
+        if (!isActiveIn(std::chrono::seconds(this->retry))) {
+            updateState(UdpPeerState::INIT);
+        }
         break;
     case UdpPeerState::FAILED:
         break;
     default:
         break;
     }
+}
+
+void UDP4::sendHeartbeat() {
+    PeerMsg::Heartbeat heartbeat;
+    heartbeat.kind = PeerMsgKind::HEARTBEAT;
+    heartbeat.ip = this->info->peer->client->address();
+    heartbeat.ack = this->ack;
+
+    auto buffer = this->info->encrypt(std::string((char *)&heartbeat, sizeof(heartbeat)));
+    if (!buffer) {
+        return;
+    }
+
+    using Poco::Net::SocketAddress;
+    if ((this->state == UdpPeerState::CONNECTED) && (!this->real.ip.empty() && this->real.port)) {
+        SocketAddress address(this->real.ip.toString(), this->real.port);
+        this->info->peer->udp4socket.sendTo(buffer->data(), buffer->size(), address);
+    }
+
+    if ((this->state == UdpPeerState::CONNECTING) && (!this->wide.ip.empty() && this->wide.port)) {
+        SocketAddress address(this->wide.ip.toString(), this->wide.port);
+        this->info->peer->udp4socket.sendTo(buffer->data(), buffer->size(), address);
+    }
+
+    if ((this->state == UdpPeerState::PREPARING || this->state == UdpPeerState::SYNCHRONIZING ||
+         this->state == UdpPeerState::CONNECTING) &&
+        (!this->local.ip.empty() && this->local.port)) {
+        SocketAddress address(this->local.ip.toString(), this->local.port);
+        this->info->peer->udp4socket.sendTo(buffer->data(), buffer->size(), address);
+    }
+}
+
+void UDP4::resetState() {
+    this->wide.reset();
+    this->local.reset();
+    this->real.reset();
+    this->ack = 0;
+    this->delay = DELAY_LIMIT;
 }
 
 std::string UDP6::name() {
