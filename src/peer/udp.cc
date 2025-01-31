@@ -1,97 +1,204 @@
 #include "peer/udp.h"
-#include "utility/address.h"
-#include <Poco/Net/DatagramSocket.h>
-#include <Poco/Net/NetworkInterface.h>
-#include <Poco/Net/SocketAddress.h>
-#include <Poco/Net/SocketDefs.h>
+#include "core/client.h"
+#include "core/message.h"
+#include "peer/info.h"
+#include "peer/peer.h"
+#include <algorithm>
 #include <spdlog/spdlog.h>
 
 namespace Candy {
 
-int UdpHolder::init() {
-    try {
-        this->socket = Poco::Net::DatagramSocket(Poco::Net::SocketAddress(this->port), true, true);
-        this->socket.setBlocking(false);
-        this->address = socket.address();
-    } catch (std::exception &e) {
-        spdlog::critical("udp holder init failed: {}", e.what());
-        return -1;
+bool UDP::isConnected() const {
+    return this->state == UdpPeerState::CONNECTED;
+}
+
+bool UDP::tryToConnect() {
+    if (this->state == UdpPeerState::INIT) {
+        updateState(UdpPeerState::PREPARING);
+        return true;
     }
-    return 0;
+    return false;
 }
 
-void UdpHolder::reset() {
-    try {
-        this->socket.close();
-        this->port = 0;
-        this->ip = 0;
-    } catch (std::exception &e) {
-        spdlog::warn("udp holder reset failed: {}", e.what());
+void UDP::updateState(UdpPeerState state) {
+    this->refreshActiveTime();
+    if (this->state == state) {
+        return;
+    }
+
+    spdlog::debug("state: {} {} {} => {}", this->address().toString(), this->name(), stateString(), stateString(state));
+
+    if (state == UdpPeerState::INIT || state == UdpPeerState::WAITING || state == UdpPeerState::FAILED) {
+        resetState();
+    }
+
+    if (this->state == UdpPeerState::WAITING && state == UdpPeerState::INIT) {
+        this->retry = std::min(this->retry * 2, RETRY_MAX);
+    } else if (state == UdpPeerState::INIT || state == UdpPeerState::FAILED) {
+        this->retry = RETRY_MIN;
+    }
+
+    this->state = state;
+}
+
+std::string UDP::stateString() const {
+    return this->stateString(this->state);
+}
+
+std::string UDP::stateString(UdpPeerState state) const {
+    switch (state) {
+    case UdpPeerState::INIT:
+        return "INIT";
+    case UdpPeerState::PREPARING:
+        return "PREPARING";
+    case UdpPeerState::SYNCHRONIZING:
+        return "SYNCHRONIZING";
+    case UdpPeerState::CONNECTING:
+        return "CONNECTING";
+    case UdpPeerState::CONNECTED:
+        return "CONNECTED";
+    case UdpPeerState::WAITING:
+        return "WAITING";
+    case UdpPeerState::FAILED:
+        return "FAILED";
+    default:
+        return "UNKNOWN";
     }
 }
 
-void UdpHolder::setPort(uint16_t port) {
-    this->port = port;
+std::string UDP4::name() {
+    return "UDP4";
 }
 
-void UdpHolder::setIP(uint32_t ip) {
-    this->ip = ip;
+void UDP4::updateInfo(IP4 ip, uint16_t port, bool local) {
+    if (local) {
+        this->local.ip = ip;
+        this->local.port = port;
+        return;
+    }
+
+    this->wide.ip = ip;
+    this->wide.port = port;
+
+    if (this->state == UdpPeerState::CONNECTED) {
+        return;
+    }
+
+    if (this->state == UdpPeerState::SYNCHRONIZING) {
+        updateState(UdpPeerState::CONNECTING);
+        return;
+    }
+
+    if (this->state != UdpPeerState::CONNECTING) {
+        updateState(UdpPeerState::PREPARING);
+        CoreMsg::PubInfo info = {.dst = this->address(), .local = true};
+        this->info->peer->sendPubInfo(info);
+        return;
+    }
 }
 
-uint16_t UdpHolder::Port() {
-    return this->address.port();
+void UDP4::handleStunResponse() {
+    if (this->state != UdpPeerState::PREPARING) {
+        return;
+    }
+    if (this->wide.ip.empty() || this->wide.port == 0) {
+        updateState(UdpPeerState::SYNCHRONIZING);
+    } else {
+        updateState(UdpPeerState::CONNECTING);
+    }
+    CoreMsg::PubInfo info = {.dst = this->address()};
+    this->info->peer->sendPubInfo(info);
 }
 
-uint32_t UdpHolder::IP() {
-    if (!this->ip) {
-        try {
-            for (const auto &iface : Poco::Net::NetworkInterface::list()) {
-                if (iface.supportsIPv4() && !iface.isLoopback() && !iface.isPointToPoint() &&
-                    iface.type() != iface.NI_TYPE_OTHER) {
-                    auto firstAddress = iface.firstAddress(Poco::Net::IPAddress::IPv4);
-                    memcpy(&this->ip, firstAddress.addr(), sizeof(this->ip));
-                    this->ip = ntohl(this->ip);
-                    break;
-                }
-            }
-        } catch (std::exception &e) {
-            spdlog::warn("local ip failed: {}", e.what());
+void UDP4::tick() {
+    switch (this->state) {
+    case UdpPeerState::INIT:
+        break;
+    case UdpPeerState::PREPARING:
+        if (isActiveIn(std::chrono::seconds(10))) {
+            this->info->peer->udpStun.needed = true;
+        } else {
+            updateState(UdpPeerState::FAILED);
         }
-    }
-    return this->ip;
-}
-
-size_t UdpHolder::read(UdpMessage &message) {
-    try {
-        if (this->socket.available()) {
-            std::string buffer(1500, 0);
-            Poco::Net::SocketAddress address;
-            int size = this->socket.receiveFrom(buffer.data(), buffer.size(), address);
-            if (size >= 0) {
-                buffer.resize(size);
-                message.buffer = std::move(buffer);
-                message.port = address.port();
-                memcpy(&message.ip, address.host().addr(), sizeof(message.ip));
-                message.ip = Address::netToHost(message.ip);
-                return size;
-            }
+        break;
+    case UdpPeerState::SYNCHRONIZING:
+        if (isActiveIn(std::chrono::seconds(10))) {
+            sendHeartbeat();
+        } else {
+            updateState(UdpPeerState::FAILED);
         }
-
-        this->socket.poll(Poco::Timespan(1, 0), Poco::Net::Socket::SELECT_READ);
-    } catch (std::exception &e) {
-        spdlog::debug("udp holder read failed: {}", e.what());
+        break;
+    case UdpPeerState::CONNECTING:
+        if (isActiveIn(std::chrono::seconds(10))) {
+            sendHeartbeat();
+        } else {
+            updateState(UdpPeerState::WAITING);
+        }
+        break;
+    case UdpPeerState::CONNECTED:
+        // 进行超时检测,超时后清空对端信息,否则发送心跳
+        if (isActiveIn(std::chrono::seconds(3))) {
+            sendHeartbeat();
+            // TODO: 检测延迟
+        } else {
+            updateState(UdpPeerState::INIT);
+            // TODO: 广播断开连接事件
+        }
+        break;
+    case UdpPeerState::WAITING:
+        if (!isActiveIn(std::chrono::seconds(this->retry))) {
+            updateState(UdpPeerState::INIT);
+        }
+        break;
+    case UdpPeerState::FAILED:
+        break;
+    default:
+        break;
     }
-    return 0;
 }
 
-size_t UdpHolder::write(const UdpMessage &message) {
-    try {
-        Poco::Net::SocketAddress address(Address::ipToStr(message.ip), message.port);
-        return this->socket.sendTo(message.buffer.data(), message.buffer.size(), address);
-    } catch (std::exception &e) {
-        spdlog::debug("udp holder write failed: {}", e.what());
+void UDP4::sendHeartbeat() {
+    PeerMsg::Heartbeat heartbeat;
+    heartbeat.kind = PeerMsgKind::HEARTBEAT;
+    heartbeat.ip = this->info->peer->client->address();
+    heartbeat.ack = this->ack;
+
+    auto buffer = this->info->encrypt(std::string((char *)&heartbeat, sizeof(heartbeat)));
+    if (!buffer) {
+        return;
     }
-    return 0;
+
+    using Poco::Net::SocketAddress;
+    if ((this->state == UdpPeerState::CONNECTED) && (!this->real.ip.empty() && this->real.port)) {
+        SocketAddress address(this->real.ip.toString(), this->real.port);
+        this->info->peer->udp4socket.sendTo(buffer->data(), buffer->size(), address);
+    }
+
+    if ((this->state == UdpPeerState::CONNECTING) && (!this->wide.ip.empty() && this->wide.port)) {
+        SocketAddress address(this->wide.ip.toString(), this->wide.port);
+        this->info->peer->udp4socket.sendTo(buffer->data(), buffer->size(), address);
+    }
+
+    if ((this->state == UdpPeerState::PREPARING || this->state == UdpPeerState::SYNCHRONIZING ||
+         this->state == UdpPeerState::CONNECTING) &&
+        (!this->local.ip.empty() && this->local.port)) {
+        SocketAddress address(this->local.ip.toString(), this->local.port);
+        this->info->peer->udp4socket.sendTo(buffer->data(), buffer->size(), address);
+    }
 }
+
+void UDP4::resetState() {
+    this->wide.reset();
+    this->local.reset();
+    this->real.reset();
+    this->ack = 0;
+    this->delay = DELAY_LIMIT;
+}
+
+std::string UDP6::name() {
+    return "UDP6";
+}
+
+void UDP6::tick() {}
 
 } // namespace Candy

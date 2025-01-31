@@ -2,58 +2,98 @@
 #ifndef CANDY_PEER_PEER_H
 #define CANDY_PEER_PEER_H
 
-#include "utility/random.h"
-#include <cstdint>
+#include "core/message.h"
+#include "core/net.h"
+#include "peer/info.h"
+#include "peer/message.h"
+#include <Poco/Net/DatagramSocket.h>
+#include <Poco/Net/PollSet.h>
+#include <Poco/Net/ServerSocket.h>
+#include <Poco/Net/StreamSocket.h>
+#include <shared_mutex>
 #include <string>
+#include <thread>
+#include <unordered_map>
+#include <vector>
 
 namespace Candy {
 
-enum class PeerState {
-    INIT,
-    PREPARING,
-    SYNCHRONIZING,
-    CONNECTING,
-    CONNECTED,
-    WAITING,
-    FAILED,
+class Client;
+
+struct Stun {
+    std::string uri;
+    Poco::Net::SocketAddress address;
+    bool needed = false;
+    IP4 ip;
+    uint16_t port;
 };
 
-constexpr int32_t DELAY_LIMIT = INT32_MAX;
-constexpr uint32_t RETRY_MIN = 30U;
-constexpr uint32_t RETRY_MAX = 3600U;
-
-class PeerInfo {
+class Peer {
 public:
-    struct {
-        uint32_t ip = 0;
-        uint16_t port = 0;
-    } wide, local, real;
-    uint8_t ack = 0;
-    uint32_t count = 0;
-    uint32_t tick = randomUint32();
-    uint32_t retry = RETRY_MIN;
-    int32_t delay = DELAY_LIMIT;
+    int setPassword(const std::string &password);
+    int setStun(const std::string &stun);
+    int setDiscoveryInterval(int interval);
+    int setForwardCost(int cost);
+    int setPort(int port);
+    int setLocalhost(const std::string &ip);
+    int setTransport(const std::vector<std::string> &transport);
 
-public:
-    int setTun(uint32_t tun, const std::string &password);
-    std::string getKey() const;
-    uint32_t getTun() const;
-    void updateState(PeerState state);
-    PeerState getState() const;
-    std::string getStateStr() const;
+    int run(Client *client);
+    int shutdown();
 
 private:
-    static std::string getStateStr(PeerState state);
-    PeerState state = PeerState::INIT;
-    uint32_t tun = 0;
-    std::string key;
-};
+    std::string password;
 
-class UdpMessage {
-public:
-    uint32_t ip;
-    uint16_t port;
-    std::string buffer;
+private:
+    // 处理来自消息队列的数据
+    void handlePeerQueue();
+    void handlePacket(Msg msg);
+    void handleTryP2P(Msg msg);
+    void handlePubInfo(Msg msg);
+
+    std::thread msgThread;
+
+    // 处理 PACKET 报文,并判断目标是否可达
+    int sendTo(IP4 dst, const Msg &msg);
+    int sendPubInfo(CoreMsg::PubInfo info);
+
+private:
+    void tick();
+    std::thread tickThread;
+
+private:
+    std::shared_mutex ipPeerMutex;
+    std::unordered_map<IP4, PeerInfo> ipPeerMap;
+
+    std::shared_mutex rtTableMutex;
+    std::unordered_map<IP4, IP4> rtTableMap;
+
+private:
+    int initSocket();
+    void sendUdpStunRequest();
+    void handleUdpStunResponse(const std::string &buffer);
+    void poll();
+
+    std::optional<std::string> decrypt(const std::string &ciphertext);
+
+    // 默认监听端口,如果不配置,随机监听
+    uint16_t listenPort = 0;
+
+    // 维护用于监听的 socket, 读操作统一在外部完成, 写操作给到 PeerInfo
+    Poco::Net::DatagramSocket udp4socket, udp6socket;
+    Poco::Net::ServerSocket tcp4socket, tcp6socket;
+    Poco::Net::PollSet pollSet;
+
+    std::vector<std::string> transport;
+    std::thread pollThread;
+    Stun udpStun;
+
+private:
+    Client *client;
+
+    friend class PeerInfo;
+    friend class UDP4;
+    friend class UDP6;
 };
 
 } // namespace Candy
