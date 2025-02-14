@@ -41,8 +41,13 @@ public:
     int run(Client *client);
     int shutdown();
 
+    std::string getPassword();
+
 private:
     std::string password;
+
+public:
+    int sendPubInfo(CoreMsg::PubInfo info);
 
 private:
     // 处理来自消息队列的数据
@@ -55,7 +60,6 @@ private:
 
     // 处理 PACKET 报文,并判断目标是否可达
     int sendTo(IP4 dst, const Msg &msg);
-    int sendPubInfo(CoreMsg::PubInfo info);
 
 private:
     void tick();
@@ -68,6 +72,9 @@ private:
     std::shared_mutex rtTableMutex;
     std::unordered_map<IP4, IP4> rtTableMap;
 
+public:
+    Stun udpStun;
+
 private:
     int initSocket();
     void sendUdpStunRequest();
@@ -79,21 +86,22 @@ private:
     // 默认监听端口,如果不配置,随机监听
     uint16_t listenPort = 0;
 
+public:
     // 维护用于监听的 socket, 读操作统一在外部完成, 写操作给到 PeerInfo
     Poco::Net::DatagramSocket udp4socket, udp6socket;
     Poco::Net::ServerSocket tcp4socket, tcp6socket;
     Poco::Net::PollSet pollSet;
 
-    std::vector<std::string> transport;
+private:
     std::thread pollThread;
-    Stun udpStun;
+
+public:
+    std::vector<std::string> getTransport();
+    Client *getClient();
 
 private:
+    std::vector<std::string> transport;
     Client *client;
-
-    friend class PeerInfo;
-    friend class UDP4;
-    friend class UDP6;
 };
 
 } // namespace Candy

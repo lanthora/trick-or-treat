@@ -18,7 +18,7 @@ namespace Candy {
 PeerInfo::PeerInfo(const IP4 &addr, Peer *peer) : peer(peer), addr(addr) {
     {
         std::string data;
-        data.append(this->peer->password);
+        data.append(this->peer->getPassword());
         auto leaddr = std::endian::native == std::endian::little ? uint32_t(this->addr) : std::byteswap(uint32_t(this->addr));
         data.append((char *)&leaddr, sizeof(leaddr));
 
@@ -28,7 +28,7 @@ PeerInfo::PeerInfo(const IP4 &addr, Peer *peer) : peer(peer), addr(addr) {
         this->encryptCtx = std::shared_ptr<EVP_CIPHER_CTX>(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free);
     }
 
-    for (const std::string &transport : peer->transport) {
+    for (const std::string &transport : peer->getTransport()) {
         if (transport == "UDP4") {
             this->connectors[transport] = std::make_shared<UDP4>(this);
             continue;
@@ -52,7 +52,7 @@ PeerInfo::PeerInfo(const IP4 &addr, Peer *peer) : peer(peer), addr(addr) {
 PeerInfo::~PeerInfo() {}
 
 bool PeerInfo::isConnected() const {
-    for (const std::string &transport : peer->transport) {
+    for (const std::string &transport : peer->getTransport()) {
         auto it = this->connectors.find(transport);
         if (it != this->connectors.end()) {
             if (it->second->isConnected()) {
@@ -64,7 +64,7 @@ bool PeerInfo::isConnected() const {
 }
 
 void PeerInfo::tryConnecct() {
-    for (const std::string &transport : peer->transport) {
+    for (const std::string &transport : peer->getTransport()) {
         auto it = this->connectors.find(transport);
         if (it != this->connectors.end()) {
             it->second->tryToConnect();
@@ -73,7 +73,7 @@ void PeerInfo::tryConnecct() {
 }
 
 void PeerInfo::tick() {
-    for (const std::string &transport : peer->transport) {
+    for (const std::string &transport : peer->getTransport()) {
         auto it = this->connectors.find(transport);
         if (it != this->connectors.end()) {
             it->second->tick();
@@ -103,6 +103,14 @@ void PeerInfo::handleUdpStunResponse() {
 
     std::shared_ptr<UDP4> conn = std::dynamic_pointer_cast<UDP4>(it->second);
     conn->handleStunResponse();
+}
+
+Peer *PeerInfo::getPeer() {
+    return this->peer;
+}
+
+IP4 PeerInfo::getAddr() {
+    return this->addr;
 }
 
 std::optional<std::string> PeerInfo::encrypt(const std::string &plaintext) {

@@ -88,6 +88,10 @@ int Peer::shutdown() {
     return 0;
 }
 
+std::string Peer::getPassword() {
+    return this->password;
+}
+
 void Peer::handlePeerQueue() {
     Msg msg = this->client->peerMsgQueue.read();
     switch (msg.kind) {
@@ -354,7 +358,16 @@ void Peer::poll() {
 }
 
 std::optional<std::string> Peer::decrypt(const std::string &ciphertext) {
+    // TODO: 实现解密
     return std::nullopt;
+}
+
+std::vector<std::string> Peer::getTransport() {
+    return this->transport;
+}
+
+Client *Peer::getClient() {
+    return this->client;
 }
 
 } // namespace Candy

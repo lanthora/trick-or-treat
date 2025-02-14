@@ -30,24 +30,25 @@ public:
     void handleUdp4Conn(IP4 ip, uint16_t port);
     void handleUdpStunResponse();
 
+    Peer *getPeer();
+    IP4 getAddr();
+
 private:
     // 对端虚拟地址
     IP4 addr;
     Peer *peer;
 
-private:
+public:
     // 所有对等连接使用统一的加密方式, 为了解决 TCP 无法分包的问题,
     // 加密使用的 IV 前两个字节用于表示报文长度, 由于 MTU 的限制, 两个字节大小足够
     std::optional<std::string> encrypt(const std::string &plaintext);
+
+private:
     std::shared_ptr<EVP_CIPHER_CTX> encryptCtx;
     std::string key;
 
 private:
     std::map<std::string, std::shared_ptr<Connector>> connectors;
-
-    friend class Connector;
-    friend class UDP;
-    friend class UDP4;
 };
 
 } // namespace Candy

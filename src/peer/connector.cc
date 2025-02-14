@@ -4,7 +4,11 @@
 namespace Candy {
 
 IP4 Connector::address() {
-    return this->info->addr;
+    return this->info->getAddr();
+}
+
+Peer *Connector::peer() {
+    return this->info->getPeer();
 }
 
 void Connector::refreshActiveTime() {
