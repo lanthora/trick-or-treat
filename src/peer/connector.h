@@ -9,7 +9,7 @@
 namespace Candy {
 
 class PeerInfo;
-class Peer;
+class PeerManager;
 
 class Connector {
 public:
@@ -20,7 +20,7 @@ public:
     virtual void tick() = 0;
     virtual std::string name() = 0;
     IP4 address();
-    Peer *peer();
+    PeerManager &peerManager();
 
 protected:
     void refreshActiveTime();

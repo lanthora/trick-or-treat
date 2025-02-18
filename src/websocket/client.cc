@@ -302,6 +302,7 @@ void WebSocketClient::sendAuthMsg() {
     buffer.updateHash(this->password);
     sendFrame(&buffer, sizeof(buffer));
     this->client->tunMsgQueue.write(Msg(MsgKind::TUNADDR, address.toCidr()));
+    this->client->peerMsgQueue.write(Msg(MsgKind::TUNADDR, address.toCidr()));
     if (addressUpdateCallback) {
         addressUpdateCallback(address.toCidr());
     }

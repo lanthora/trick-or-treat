@@ -69,7 +69,7 @@ private:
     // TUN 模块,与本机通信
     Tun tun;
     // PEER 模块,用于建立 P2P 连接,以及在 P2P 连接之上的客户端中继功能
-    Peer peer;
+    PeerManager peerManager;
     // WS 模块,主要处理与服务端之间的控制信息,在 P2P 无法使用时提供服务端中继
     WebSocketClient ws;
 

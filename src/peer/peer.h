@@ -28,7 +28,7 @@ struct Stun {
     uint16_t port;
 };
 
-class Peer {
+class PeerManager {
 public:
     int setPassword(const std::string &password);
     int setStun(const std::string &stun);
@@ -48,11 +48,13 @@ private:
 
 public:
     int sendPubInfo(CoreMsg::PubInfo info);
+    IP4 getTunIp();
 
 private:
     // 处理来自消息队列的数据
     void handlePeerQueue();
     void handlePacket(Msg msg);
+    void handleTunAddr(Msg msg);
     void handleTryP2P(Msg msg);
     void handlePubInfo(Msg msg);
 
@@ -60,6 +62,8 @@ private:
 
     // 处理 PACKET 报文,并判断目标是否可达
     int sendTo(IP4 dst, const Msg &msg);
+
+    Address tunAddr;
 
 private:
     void tick();
@@ -82,6 +86,9 @@ private:
     void poll();
 
     std::optional<std::string> decrypt(const std::string &ciphertext);
+    std::shared_ptr<EVP_CIPHER_CTX> decryptCtx;
+    std::mutex decryptCtxMutex;
+    std::string key;
 
     // 默认监听端口,如果不配置,随机监听
     uint16_t listenPort = 0;
@@ -97,7 +104,7 @@ private:
 
 public:
     std::vector<std::string> getTransport();
-    Client *getClient();
+    Client &getClient();
 
 private:
     std::vector<std::string> transport;

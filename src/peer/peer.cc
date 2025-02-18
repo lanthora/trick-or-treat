@@ -8,47 +8,48 @@
 #include <Poco/Net/NetException.h>
 #include <Poco/Timespan.h>
 #include <Poco/URI.h>
+#include <openssl/sha.h>
 #include <shared_mutex>
 #include <spdlog/fmt/bin_to_hex.h>
 #include <spdlog/spdlog.h>
 
 namespace Candy {
 
-int Peer::setPassword(const std::string &password) {
+int PeerManager::setPassword(const std::string &password) {
     this->password = password;
     return 0;
 }
 
-int Peer::setStun(const std::string &stun) {
+int PeerManager::setStun(const std::string &stun) {
     this->udpStun.uri = stun;
     return 0;
 }
 
-int Peer::setDiscoveryInterval(int interval) {
+int PeerManager::setDiscoveryInterval(int interval) {
     return 0;
 }
 
-int Peer::setForwardCost(int cost) {
+int PeerManager::setForwardCost(int cost) {
     return 0;
 }
 
-int Peer::setPort(int port) {
+int PeerManager::setPort(int port) {
     if (port > 0 && port <= UINT16_MAX) {
         this->listenPort = port;
     }
     return 0;
 }
 
-int Peer::setLocalhost(const std::string &ip) {
+int PeerManager::setLocalhost(const std::string &ip) {
     return 0;
 }
 
-int Peer::setTransport(const std::vector<std::string> &transport) {
+int PeerManager::setTransport(const std::vector<std::string> &transport) {
     this->transport = transport;
     return 0;
 }
 
-int Peer::run(Client *client) {
+int PeerManager::run(Client *client) {
     this->client = client;
 
     if (this->initSocket()) {
@@ -75,7 +76,7 @@ int Peer::run(Client *client) {
     return 0;
 }
 
-int Peer::shutdown() {
+int PeerManager::shutdown() {
     if (this->msgThread.joinable()) {
         this->msgThread.join();
     }
@@ -88,17 +89,20 @@ int Peer::shutdown() {
     return 0;
 }
 
-std::string Peer::getPassword() {
+std::string PeerManager::getPassword() {
     return this->password;
 }
 
-void Peer::handlePeerQueue() {
+void PeerManager::handlePeerQueue() {
     Msg msg = this->client->peerMsgQueue.read();
     switch (msg.kind) {
     case MsgKind::TIMEOUT:
         break;
     case MsgKind::PACKET:
         handlePacket(std::move(msg));
+        break;
+    case MsgKind::TUNADDR:
+        handleTunAddr(std::move(msg));
         break;
     case MsgKind::TRYP2P:
         handleTryP2P(std::move(msg));
@@ -112,7 +116,7 @@ void Peer::handlePeerQueue() {
     }
 }
 
-int Peer::sendTo(IP4 dst, const Msg &msg) {
+int PeerManager::sendTo(IP4 dst, const Msg &msg) {
     // 这两个锁同时使用时先给 ipPeerMap 加锁,避免死锁
     std::shared_lock ipPeerLock(this->ipPeerMutex);
     std::shared_lock rtTableLock(this->rtTableMutex);
@@ -135,7 +139,7 @@ int Peer::sendTo(IP4 dst, const Msg &msg) {
     return info.send(data);
 }
 
-int Peer::sendPubInfo(CoreMsg::PubInfo info) {
+int PeerManager::sendPubInfo(CoreMsg::PubInfo info) {
     info.src = this->client->address();
     if (!info.v6 && !info.tcp && !info.local) {
         info.ip = this->udpStun.ip;
@@ -145,7 +149,11 @@ int Peer::sendPubInfo(CoreMsg::PubInfo info) {
     return 0;
 }
 
-void Peer::handlePacket(Msg msg) {
+IP4 PeerManager::getTunIp() {
+    return this->tunAddr.Host();
+}
+
+void PeerManager::handlePacket(Msg msg) {
     IP4Header *header = (IP4Header *)msg.data.data();
     // 尝试 P2P 转发流量
     if (!sendTo(header->daddr, msg)) {
@@ -155,7 +163,22 @@ void Peer::handlePacket(Msg msg) {
     this->client->wsMsgQueue.write(std::move(msg));
 }
 
-void Peer::handleTryP2P(Msg msg) {
+void PeerManager::handleTunAddr(Msg msg) {
+    if (this->tunAddr.fromCidr(msg.data)) {
+        spdlog::error("set tun addr failed: {}", msg.data);
+        return;
+    }
+
+    std::string data;
+    data.append(this->password);
+    auto leaddr = hton(uint32_t(this->tunAddr.Host()));
+    data.append((char *)&leaddr, sizeof(leaddr));
+
+    this->key.resize(SHA256_DIGEST_LENGTH);
+    SHA256((unsigned char *)data.data(), data.size(), (unsigned char *)this->key.data());
+}
+
+void PeerManager::handleTryP2P(Msg msg) {
     IP4 src(msg.data);
 
     std::shared_lock ipPeerLock(this->ipPeerMutex);
@@ -178,7 +201,7 @@ void Peer::handleTryP2P(Msg msg) {
     it->second.tryConnecct();
 }
 
-void Peer::handlePubInfo(Msg msg) {
+void PeerManager::handlePubInfo(Msg msg) {
     CoreMsg::PubInfo *info = (CoreMsg::PubInfo *)(msg.data.data());
 
     if (info->src == this->client->address() || info->dst != this->client->address()) {
@@ -198,7 +221,7 @@ void Peer::handlePubInfo(Msg msg) {
     }
 }
 
-void Peer::tick() {
+void PeerManager::tick() {
     {
         std::shared_lock ipPeerLock(this->ipPeerMutex);
         for (auto &[ip, peer] : this->ipPeerMap) {
@@ -212,7 +235,7 @@ void Peer::tick() {
     }
 }
 
-int Peer::initSocket() {
+int PeerManager::initSocket() {
     using Poco::Net::AddressFamily;
     using Poco::Net::PollSet;
     using Poco::Net::SocketAddress;
@@ -238,6 +261,8 @@ int Peer::initSocket() {
         return -1;
     }
 
+    this->decryptCtx = std::shared_ptr<EVP_CIPHER_CTX>(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free);
+
     this->pollThread = std::thread([&]() {
         while (this->client->running) {
             poll();
@@ -246,7 +271,7 @@ int Peer::initSocket() {
     return 0;
 }
 
-void Peer::sendUdpStunRequest() {
+void PeerManager::sendUdpStunRequest() {
     try {
         Poco::URI uri(this->udpStun.uri);
         if (!uri.getPort()) {
@@ -262,7 +287,7 @@ void Peer::sendUdpStunRequest() {
     }
 }
 
-void Peer::handleUdpStunResponse(const std::string &buffer) {
+void PeerManager::handleUdpStunResponse(const std::string &buffer) {
     if (buffer.length() < sizeof(StunResponse)) {
         spdlog::debug("invalid stun response length: {}", buffer.length());
         return;
@@ -317,7 +342,7 @@ void Peer::handleUdpStunResponse(const std::string &buffer) {
     return;
 }
 
-void Peer::poll() {
+void PeerManager::poll() {
     using Poco::Net::PollSet;
     using Poco::Net::Socket;
     using Poco::Net::SocketAddress;
@@ -339,13 +364,15 @@ void Peer::poll() {
                 std::string buffer(1500, 0);
                 SocketAddress address;
                 auto size = udp4socket.receiveFrom(buffer.data(), buffer.size(), address);
-                buffer.resize(size);
-                if (this->udpStun.address == address) {
-                    handleUdpStunResponse(buffer);
-                } else {
-                    auto plaintext = decrypt(buffer);
-                    if (plaintext) {
-                        spdlog::info("udp4socket received message: {}", address.toString());
+                if (size > 0) {
+                    buffer.resize(size);
+                    if (this->udpStun.address == address) {
+                        handleUdpStunResponse(buffer);
+                    } else {
+                        auto plaintext = decrypt(buffer);
+                        if (plaintext) {
+                            spdlog::info("udp4socket received message: {}", address.toString());
+                        }
                     }
                 }
                 continue;
@@ -357,17 +384,73 @@ void Peer::poll() {
     }
 }
 
-std::optional<std::string> Peer::decrypt(const std::string &ciphertext) {
-    // TODO: 实现解密
-    return std::nullopt;
+std::optional<std::string> PeerManager::decrypt(const std::string &ciphertext) {
+    int len = 0;
+    int plaintextLen = 0;
+    unsigned char *enc = NULL;
+    unsigned char plaintext[1500] = {0};
+    unsigned char iv[AES_256_GCM_IV_LEN] = {0};
+    unsigned char tag[AES_256_GCM_TAG_LEN] = {0};
+
+    if (this->key.size() != AES_256_GCM_KEY_LEN) {
+        spdlog::debug("invalid key length: {}", this->key.size());
+        return std::nullopt;
+    }
+
+    if (ciphertext.size() < AES_256_GCM_IV_LEN + AES_256_GCM_TAG_LEN) {
+        spdlog::debug("invalid ciphertext length: {}", ciphertext.size());
+        return std::nullopt;
+    }
+
+    std::lock_guard lock(this->decryptCtxMutex);
+    auto ctx = this->decryptCtx.get();
+
+    if (!EVP_CIPHER_CTX_reset(ctx)) {
+        spdlog::debug("decrypt reset cipher context failed");
+        return std::nullopt;
+    }
+
+    enc = (unsigned char *)ciphertext.data();
+    memcpy(iv, enc, AES_256_GCM_IV_LEN);
+    memcpy(tag, enc + AES_256_GCM_IV_LEN, AES_256_GCM_TAG_LEN);
+    enc += AES_256_GCM_IV_LEN + AES_256_GCM_TAG_LEN;
+
+    if (!EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, (unsigned char *)key.data(), iv)) {
+        spdlog::debug("initialize cipher context failed");
+        return std::nullopt;
+    }
+    if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, AES_256_GCM_IV_LEN, NULL)) {
+        spdlog::debug("set iv length failed");
+        return std::nullopt;
+    }
+    if (!EVP_DecryptUpdate(ctx, plaintext, &len, enc, ciphertext.size() - AES_256_GCM_IV_LEN - AES_256_GCM_TAG_LEN)) {
+        spdlog::debug("decrypt update failed");
+        return std::nullopt;
+    }
+    if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, AES_256_GCM_TAG_LEN, tag)) {
+        spdlog::debug("set tag failed");
+        return std::nullopt;
+    }
+
+    plaintextLen = len;
+    if (!EVP_DecryptFinal_ex(ctx, plaintext + len, &len)) {
+        spdlog::debug("decrypt final failed");
+        return std::nullopt;
+    }
+
+    plaintextLen += len;
+
+    std::string result;
+    result.append((char *)plaintext, plaintextLen);
+    return result;
 }
 
-std::vector<std::string> Peer::getTransport() {
+std::vector<std::string> PeerManager::getTransport() {
     return this->transport;
 }
 
-Client *Peer::getClient() {
-    return this->client;
+Client &PeerManager::getClient() {
+    return *this->client;
 }
 
 } // namespace Candy

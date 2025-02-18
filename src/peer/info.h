@@ -14,11 +14,11 @@
 
 namespace Candy {
 
-class Peer;
+class PeerManager;
 
 class PeerInfo {
 public:
-    PeerInfo(const IP4 &addr, Peer *peer);
+    PeerInfo(const IP4 &addr, PeerManager *peerManager);
     ~PeerInfo();
 
 public:
@@ -30,13 +30,13 @@ public:
     void handleUdp4Conn(IP4 ip, uint16_t port);
     void handleUdpStunResponse();
 
-    Peer *getPeer();
+    PeerManager &getPeerManager();
     IP4 getAddr();
 
 private:
     // 对端虚拟地址
     IP4 addr;
-    Peer *peer;
+    PeerManager *peerManager;
 
 public:
     // 所有对等连接使用统一的加密方式, 为了解决 TCP 无法分包的问题,
@@ -45,6 +45,7 @@ public:
 
 private:
     std::shared_ptr<EVP_CIPHER_CTX> encryptCtx;
+    std::mutex encryptCtxMutex;
     std::string key;
 
 private:

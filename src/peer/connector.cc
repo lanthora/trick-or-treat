@@ -7,8 +7,8 @@ IP4 Connector::address() {
     return this->info->getAddr();
 }
 
-Peer *Connector::peer() {
-    return this->info->getPeer();
+PeerManager &Connector::peerManager() {
+    return this->info->getPeerManager();
 }
 
 void Connector::refreshActiveTime() {

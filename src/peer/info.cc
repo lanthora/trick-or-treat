@@ -5,21 +5,13 @@
 #include <openssl/rand.h>
 #include <openssl/sha.h>
 
-namespace {
-
-constexpr std::size_t AES_256_GCM_IV_LEN = 12;
-constexpr std::size_t AES_256_GCM_TAG_LEN = 16;
-constexpr std::size_t AES_256_GCM_KEY_LEN = 32;
-
-} // namespace
-
 namespace Candy {
 
-PeerInfo::PeerInfo(const IP4 &addr, Peer *peer) : peer(peer), addr(addr) {
+PeerInfo::PeerInfo(const IP4 &addr, PeerManager *peer) : peerManager(peer), addr(addr) {
     {
         std::string data;
-        data.append(this->peer->getPassword());
-        auto leaddr = std::endian::native == std::endian::little ? uint32_t(this->addr) : std::byteswap(uint32_t(this->addr));
+        data.append(this->peerManager->getPassword());
+        auto leaddr = hton(uint32_t(this->addr));
         data.append((char *)&leaddr, sizeof(leaddr));
 
         this->key.resize(SHA256_DIGEST_LENGTH);
@@ -52,7 +44,7 @@ PeerInfo::PeerInfo(const IP4 &addr, Peer *peer) : peer(peer), addr(addr) {
 PeerInfo::~PeerInfo() {}
 
 bool PeerInfo::isConnected() const {
-    for (const std::string &transport : peer->getTransport()) {
+    for (const std::string &transport : peerManager->getTransport()) {
         auto it = this->connectors.find(transport);
         if (it != this->connectors.end()) {
             if (it->second->isConnected()) {
@@ -64,7 +56,7 @@ bool PeerInfo::isConnected() const {
 }
 
 void PeerInfo::tryConnecct() {
-    for (const std::string &transport : peer->getTransport()) {
+    for (const std::string &transport : peerManager->getTransport()) {
         auto it = this->connectors.find(transport);
         if (it != this->connectors.end()) {
             it->second->tryToConnect();
@@ -73,7 +65,7 @@ void PeerInfo::tryConnecct() {
 }
 
 void PeerInfo::tick() {
-    for (const std::string &transport : peer->getTransport()) {
+    for (const std::string &transport : peerManager->getTransport()) {
         auto it = this->connectors.find(transport);
         if (it != this->connectors.end()) {
             it->second->tick();
@@ -105,8 +97,8 @@ void PeerInfo::handleUdpStunResponse() {
     conn->handleStunResponse();
 }
 
-Peer *PeerInfo::getPeer() {
-    return this->peer;
+PeerManager &PeerInfo::getPeerManager() {
+    return *this->peerManager;
 }
 
 IP4 PeerInfo::getAddr() {
@@ -131,14 +123,15 @@ std::optional<std::string> PeerInfo::encrypt(const std::string &plaintext) {
         iv[1] = size & 0x00FF;
     }
 
+    std::lock_guard lock(this->encryptCtxMutex);
     auto ctx = this->encryptCtx.get();
 
     if (!EVP_CIPHER_CTX_reset(ctx)) {
-        spdlog::debug("reset cipher context failed");
+        spdlog::debug("encrypt reset cipher context failed");
         return std::nullopt;
     }
     if (!EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, (unsigned char *)key.data(), iv)) {
-        spdlog::debug("initialize cipher context failed");
+        spdlog::debug("encrypt initialize cipher context failed");
         return std::nullopt;
     }
     if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, AES_256_GCM_IV_LEN, NULL)) {

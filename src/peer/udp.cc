@@ -92,7 +92,7 @@ void UDP4::updateInfo(IP4 ip, uint16_t port, bool local) {
     if (this->state != UdpPeerState::CONNECTING) {
         updateState(UdpPeerState::PREPARING);
         CoreMsg::PubInfo info = {.dst = this->address(), .local = true};
-        peer()->sendPubInfo(info);
+        peerManager().sendPubInfo(info);
         return;
     }
 }
@@ -107,7 +107,7 @@ void UDP4::handleStunResponse() {
         updateState(UdpPeerState::CONNECTING);
     }
     CoreMsg::PubInfo info = {.dst = this->address()};
-    peer()->sendPubInfo(info);
+    peerManager().sendPubInfo(info);
 }
 
 void UDP4::tick() {
@@ -116,7 +116,7 @@ void UDP4::tick() {
         break;
     case UdpPeerState::PREPARING:
         if (isActiveIn(std::chrono::seconds(10))) {
-            peer()->udpStun.needed = true;
+            peerManager().udpStun.needed = true;
         } else {
             updateState(UdpPeerState::FAILED);
         }
@@ -160,7 +160,7 @@ void UDP4::tick() {
 void UDP4::sendHeartbeat() {
     PeerMsg::Heartbeat heartbeat;
     heartbeat.kind = PeerMsgKind::HEARTBEAT;
-    heartbeat.ip = peer()->getClient()->address();
+    heartbeat.ip = peerManager().getTunIp();
     heartbeat.ack = this->ack;
 
     auto buffer = this->info->encrypt(std::string((char *)&heartbeat, sizeof(heartbeat)));
@@ -171,19 +171,19 @@ void UDP4::sendHeartbeat() {
     using Poco::Net::SocketAddress;
     if ((this->state == UdpPeerState::CONNECTED) && (!this->real.ip.empty() && this->real.port)) {
         SocketAddress address(this->real.ip.toString(), this->real.port);
-        peer()->udp4socket.sendTo(buffer->data(), buffer->size(), address);
+        peerManager().udp4socket.sendTo(buffer->data(), buffer->size(), address);
     }
 
     if ((this->state == UdpPeerState::CONNECTING) && (!this->wide.ip.empty() && this->wide.port)) {
         SocketAddress address(this->wide.ip.toString(), this->wide.port);
-        peer()->udp4socket.sendTo(buffer->data(), buffer->size(), address);
+        peerManager().udp4socket.sendTo(buffer->data(), buffer->size(), address);
     }
 
     if ((this->state == UdpPeerState::PREPARING || this->state == UdpPeerState::SYNCHRONIZING ||
          this->state == UdpPeerState::CONNECTING) &&
         (!this->local.ip.empty() && this->local.port)) {
         SocketAddress address(this->local.ip.toString(), this->local.port);
-        peer()->udp4socket.sendTo(buffer->data(), buffer->size(), address);
+        peerManager().udp4socket.sendTo(buffer->data(), buffer->size(), address);
     }
 }
 

@@ -41,7 +41,7 @@ IP4 Client::address() {
 
 void Client::setPassword(const std::string &password) {
     ws.setPassword(password);
-    peer.setPassword(password);
+    peerManager.setPassword(password);
 }
 
 void Client::setWebSocket(const std::string &uri) {
@@ -71,27 +71,27 @@ void Client::setTransport(const std::string &transport) {
             inner_transport.push_back(item);
         }
     }
-    peer.setTransport(inner_transport);
+    peerManager.setTransport(inner_transport);
 }
 
 void Client::setStun(const std::string &stun) {
-    peer.setStun(stun);
+    peerManager.setStun(stun);
 }
 
 void Client::setDiscoveryInterval(int interval) {
-    peer.setDiscoveryInterval(interval);
+    peerManager.setDiscoveryInterval(interval);
 }
 
 void Client::setRouteCost(int cost) {
-    peer.setForwardCost(cost);
+    peerManager.setForwardCost(cost);
 }
 
 void Client::setPort(int port) {
-    peer.setPort(port);
+    peerManager.setPort(port);
 }
 
 void Client::setLocalhost(std::string ip) {
-    peer.setLocalhost(ip);
+    peerManager.setLocalhost(ip);
 }
 
 void Client::setMtu(int mtu) {
@@ -106,14 +106,14 @@ void Client::run() {
     this->running = true;
     ws.run(this);
     tun.run(this);
-    peer.run(this);
+    peerManager.run(this);
 }
 
 void Client::shutdown() {
     this->running = false;
     ws.shutdown();
     tun.shutdown();
-    peer.shutdown();
+    peerManager.shutdown();
 }
 
 } // namespace Candy
