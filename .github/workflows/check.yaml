@@ -28,7 +28,7 @@ jobs:
     runs-on: macos-latest
     steps:
     - name: depends
-      run: brew install openssl fmt spdlog ninja
+      run: brew update && brew install fmt poco spdlog ninja
     - name: checkout
       uses: actions/checkout@v4
     - name: build
@@ -40,7 +40,7 @@ jobs:
           export CPATH=/usr/local/include
           export LIBRARY_PATH=/usr/local/lib
         fi
-        cmake -B build -G Ninja -DCANDY_STATIC_POCO=1 -DCMAKE_BUILD_TYPE=Release
+        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
         cmake --build build
 
   windows:

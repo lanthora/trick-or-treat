@@ -20,6 +20,10 @@ bool UDP::tryToConnect() {
     return false;
 }
 
+void UDP::setAck() {
+    this->ack = 1;
+}
+
 void UDP::updateState(UdpPeerState state) {
     this->refreshActiveTime();
     if (this->state == state) {

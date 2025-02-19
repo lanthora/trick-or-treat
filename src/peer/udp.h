@@ -27,6 +27,7 @@ public:
 
     bool isConnected() const;
     bool tryToConnect();
+    void setAck();
 
 protected:
     UdpPeerState state = UdpPeerState::INIT;
