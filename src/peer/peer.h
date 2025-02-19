@@ -18,11 +18,13 @@
 
 namespace Candy {
 
+using Poco::Net::SocketAddress;
+
 class Client;
 
 struct Stun {
     std::string uri;
-    Poco::Net::SocketAddress address;
+    SocketAddress address;
     bool needed = false;
     IP4 ip;
     uint16_t port;
@@ -83,6 +85,11 @@ private:
     int initSocket();
     void sendUdpStunRequest();
     void handleUdpStunResponse(const std::string &buffer);
+    void handleUdp4Message(const std::string &buffer, const SocketAddress &address);
+    void handleUdp4HeartbeatMessage(const std::string &buffer, const SocketAddress &address);
+    void handleUdp4ForwardMessage(const std::string &buffer, const SocketAddress &address);
+    void handleUdp4DelayMessage(const std::string &buffer, const SocketAddress &address);
+    void handleUdp4RouteMessage(const std::string &buffer, const SocketAddress &address);
     void poll();
 
     std::optional<std::string> decrypt(const std::string &ciphertext);

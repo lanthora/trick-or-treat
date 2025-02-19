@@ -86,6 +86,9 @@ int PeerManager::shutdown() {
     if (this->pollThread.joinable()) {
         this->pollThread.join();
     }
+
+    // TODO: 清理 socket 连接
+
     return 0;
 }
 
@@ -241,21 +244,27 @@ int PeerManager::initSocket() {
     using Poco::Net::SocketAddress;
 
     try {
-        this->udp4socket.bind(SocketAddress(AddressFamily::IPv4, this->listenPort), true);
-        this->udp6socket.bind6(SocketAddress(AddressFamily::IPv6, this->listenPort), true, true, true);
-        this->tcp4socket.bind(SocketAddress(AddressFamily::IPv4, this->listenPort), true);
-        this->tcp6socket.bind6(SocketAddress(AddressFamily::IPv6, this->listenPort), true, true);
-
-        this->tcp4socket.listen();
-        this->tcp6socket.listen();
-
-        spdlog::info("ipv4 listen port: udp=[{}] tcp=[{}]", this->udp4socket.address().port(), this->tcp4socket.address().port());
-        spdlog::info("ipv6 listen port: udp=[{}] tcp=[{}]", this->udp6socket.address().port(), this->tcp6socket.address().port());
-
-        this->pollSet.add(this->udp4socket, PollSet::POLL_READ);
-        this->pollSet.add(this->udp6socket, PollSet::POLL_READ);
-        this->pollSet.add(this->tcp4socket, PollSet::POLL_READ);
-        this->pollSet.add(this->tcp6socket, PollSet::POLL_READ);
+        for (auto &transport : this->transport) {
+            if (transport == "UDP4") {
+                this->udp4socket.bind(SocketAddress(AddressFamily::IPv4, this->listenPort), true);
+                spdlog::info("IPv4 UDP listen port: {}", this->udp4socket.address().port());
+                this->pollSet.add(this->udp4socket, PollSet::POLL_READ);
+            } else if (transport == "UDP6") {
+                this->udp6socket.bind6(SocketAddress(AddressFamily::IPv6, this->listenPort), true, true, true);
+                spdlog::info("IPv6 UDP listen port: {}", this->udp6socket.address().port());
+                this->pollSet.add(this->udp6socket, PollSet::POLL_READ);
+            } else if (transport == "TCP4") {
+                this->tcp4socket.bind(SocketAddress(AddressFamily::IPv4, this->listenPort), true);
+                this->tcp4socket.listen();
+                spdlog::info("IPv4 TCP listen port: {}", this->tcp4socket.address().port());
+                this->pollSet.add(this->tcp4socket, PollSet::POLL_READ);
+            } else if (transport == "TCP6") {
+                this->tcp6socket.bind6(SocketAddress(AddressFamily::IPv6, this->listenPort), true, true);
+                this->tcp6socket.listen();
+                spdlog::info("IPv6 TCP listen port: {}", this->tcp6socket.address().port());
+                this->pollSet.add(this->tcp6socket, PollSet::POLL_READ);
+            }
+        }
     } catch (Poco::Net::NetException &e) {
         spdlog::critical("peer init socket failed: {}: {}", e.what(), e.message());
         return -1;
@@ -342,6 +351,42 @@ void PeerManager::handleUdpStunResponse(const std::string &buffer) {
     return;
 }
 
+void PeerManager::handleUdp4Message(const std::string &buffer, const SocketAddress &address) {
+    switch (buffer.front()) {
+    case PeerMsgKind::HEARTBEAT:
+        handleUdp4HeartbeatMessage(buffer, address);
+        break;
+    case PeerMsgKind::FORWARD:
+        handleUdp4ForwardMessage(buffer, address);
+        break;
+    case PeerMsgKind::DELAY:
+        handleUdp4DelayMessage(buffer, address);
+        break;
+    case PeerMsgKind::ROUTE:
+        handleUdp4RouteMessage(buffer, address);
+        break;
+    default:
+        spdlog::info("udp4 unknown message: {}", address.toString());
+        break;
+    }
+}
+
+void PeerManager::handleUdp4HeartbeatMessage(const std::string &buffer, const SocketAddress &address) {
+    spdlog::info("udp4 heartbeat message: {}", address.toString());
+}
+
+void PeerManager::handleUdp4ForwardMessage(const std::string &buffer, const SocketAddress &address) {
+    spdlog::info("udp4 forward message: {}", address.toString());
+}
+
+void PeerManager::handleUdp4DelayMessage(const std::string &buffer, const SocketAddress &address) {
+    spdlog::info("udp4 delay message: {}", address.toString());
+}
+
+void PeerManager::handleUdp4RouteMessage(const std::string &buffer, const SocketAddress &address) {
+    spdlog::info("udp4 route message: {}", address.toString());
+}
+
 void PeerManager::poll() {
     using Poco::Net::PollSet;
     using Poco::Net::Socket;
@@ -371,7 +416,7 @@ void PeerManager::poll() {
                     } else {
                         auto plaintext = decrypt(buffer);
                         if (plaintext) {
-                            spdlog::info("udp4socket received message: {}", address.toString());
+                            handleUdp4Message(*plaintext, address);
                         }
                     }
                 }

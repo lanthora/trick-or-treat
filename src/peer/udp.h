@@ -4,12 +4,15 @@
 
 #include "core/net.h"
 #include "peer/connector.h"
+#include <Poco/Net/SocketAddress.h>
 
 namespace Candy {
 
 constexpr int32_t DELAY_LIMIT = INT32_MAX;
 constexpr uint32_t RETRY_MIN = 30;
 constexpr uint32_t RETRY_MAX = 3600;
+
+using Poco::Net::SocketAddress;
 
 enum class UdpPeerState {
     INIT,          // 默认状态
@@ -55,15 +58,7 @@ protected:
 
 private:
     void sendHeartbeat();
-
-    struct {
-        IP4 ip;
-        uint16_t port = 0;
-        void reset() {
-            ip.reset();
-            port = 0;
-        }
-    } wide, local, real;
+    std::optional<SocketAddress> wide, local, real;
 };
 
 class UDP6 : public UDP {
