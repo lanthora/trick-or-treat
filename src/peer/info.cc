@@ -78,23 +78,17 @@ int PeerInfo::send(const std::string &data) {
 }
 
 void PeerInfo::handleUdp4Conn(IP4 ip, uint16_t port) {
-    auto it = this->connectors.find("UDP4");
-    if (it == this->connectors.end()) {
-        return;
+    auto peer = Udp4();
+    if (peer) {
+        peer->updateInfo(ip, port);
     }
-
-    std::shared_ptr<UDP4> conn = std::dynamic_pointer_cast<UDP4>(it->second);
-    conn->updateInfo(ip, port);
 }
 
 void PeerInfo::handleUdpStunResponse() {
-    auto it = this->connectors.find("UDP4");
-    if (it == this->connectors.end()) {
-        return;
+    auto peer = Udp4();
+    if (peer) {
+        peer->handleStunResponse();
     }
-
-    std::shared_ptr<UDP4> conn = std::dynamic_pointer_cast<UDP4>(it->second);
-    conn->handleStunResponse();
 }
 
 PeerManager &PeerInfo::getPeerManager() {
@@ -158,6 +152,38 @@ std::optional<std::string> PeerInfo::encrypt(const std::string &plaintext) {
     result.append((char *)tag, AES_256_GCM_TAG_LEN);
     result.append((char *)ciphertext, ciphertextLen);
     return result;
+}
+
+std::shared_ptr<UDP4> PeerInfo::Udp4() {
+    auto it = this->connectors.find("UDP4");
+    if (it != this->connectors.end()) {
+        return std::dynamic_pointer_cast<UDP4>(it->second);
+    }
+    return nullptr;
+}
+
+std::shared_ptr<UDP6> PeerInfo::Udp6() {
+    auto it = this->connectors.find("UDP6");
+    if (it != this->connectors.end()) {
+        return std::dynamic_pointer_cast<UDP6>(it->second);
+    }
+    return nullptr;
+}
+
+std::shared_ptr<TCP4> PeerInfo::Tcp4() {
+    auto it = this->connectors.find("TCP4");
+    if (it != this->connectors.end()) {
+        return std::dynamic_pointer_cast<TCP4>(it->second);
+    }
+    return nullptr;
+}
+
+std::shared_ptr<TCP6> PeerInfo::Tcp6() {
+    auto it = this->connectors.find("TCP6");
+    if (it != this->connectors.end()) {
+        return std::dynamic_pointer_cast<TCP6>(it->second);
+    }
+    return nullptr;
 }
 
 } // namespace Candy

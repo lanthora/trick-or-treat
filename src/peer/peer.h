@@ -80,6 +80,7 @@ private:
 
 public:
     Stun udpStun;
+    std::atomic<bool> localP2PDisabled;
 
 private:
     int initSocket();

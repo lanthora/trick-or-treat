@@ -266,6 +266,7 @@ void WebSocketClient::handleRouteMsg(std::string buffer) {
     SysRouteEntry *rt = header->rtTable;
     for (uint8_t idx = 0; idx < header->size; ++idx) {
         this->client->tunMsgQueue.write(Msg(MsgKind::SYSRT, std::string((char *)(rt + idx), sizeof(SysRouteEntry))));
+        this->client->peerMsgQueue.write(Msg(MsgKind::SYSRT));
     }
 }
 

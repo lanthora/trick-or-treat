@@ -30,13 +30,12 @@ public:
 
     bool isConnected() const;
     bool tryToConnect();
-    void setAck();
 
 protected:
     UdpPeerState state = UdpPeerState::INIT;
     std::string stateString() const;
     std::string stateString(UdpPeerState state) const;
-    void updateState(UdpPeerState state);
+    bool updateState(UdpPeerState state);
     virtual void resetState() = 0;
 
     uint8_t ack = 0;
@@ -52,6 +51,7 @@ public:
     void updateInfo(IP4 ip, uint16_t port, bool local = false);
     void handleStunResponse();
     void tick();
+    void handleHeartbeatMessage(const SocketAddress &address, uint8_t heartbeatAck);
 
 protected:
     void resetState();

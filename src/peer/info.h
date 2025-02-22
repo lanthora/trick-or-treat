@@ -48,6 +48,12 @@ private:
     std::mutex encryptCtxMutex;
     std::string key;
 
+public:
+    std::shared_ptr<UDP4> Udp4();
+    std::shared_ptr<UDP6> Udp6();
+    std::shared_ptr<TCP4> Tcp4();
+    std::shared_ptr<TCP6> Tcp6();
+
 private:
     std::map<std::string, std::shared_ptr<Connector>> connectors;
 };

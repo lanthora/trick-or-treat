@@ -3,8 +3,39 @@
 #include "core/message.h"
 #include "peer/info.h"
 #include "peer/peer.h"
+#include <Poco/Net/IPAddress.h>
+#include <Poco/Net/SocketAddress.h>
 #include <algorithm>
 #include <spdlog/spdlog.h>
+
+namespace {
+
+using namespace Poco::Net;
+
+bool isIPv4Local(uint32_t ipv4_host) {
+    return ((ipv4_host & 0xFF000000) == 0x0A000000) || // 10.0.0.0/8
+           ((ipv4_host & 0xFFF00000) == 0xAC100000) || // 172.16.0.0/12
+           ((ipv4_host & 0xFFFF0000) == 0xC0A80000) || // 192.168.0.0/16
+           ((ipv4_host & 0xFF000000) == 0x7F000000) || // 127.0.0.0/8
+           ((ipv4_host & 0xFFFF0000) == 0xA9FE0000);   // 169.254.0.0/16
+}
+
+bool isLocalNetwork(const SocketAddress &addr) {
+    IPAddress ip = addr.host();
+
+    if (ip.isV4()) {
+        uint32_t ipv4_net;
+        std::memcpy(&ipv4_net, ip.addr(), 4);
+        return isIPv4Local(Candy::ntoh(ipv4_net));
+    } else if (ip.isV6()) {
+        // TODO: 添加 IPv6 支持
+        spdlog::error("unexpected ipv6 local address");
+    }
+
+    return false;
+}
+
+} // namespace
 
 namespace Candy {
 
@@ -20,14 +51,10 @@ bool UDP::tryToConnect() {
     return false;
 }
 
-void UDP::setAck() {
-    this->ack = 1;
-}
-
-void UDP::updateState(UdpPeerState state) {
+bool UDP::updateState(UdpPeerState state) {
     this->refreshActiveTime();
     if (this->state == state) {
-        return;
+        return false;
     }
 
     spdlog::debug("state: {} {} {} => {}", this->address().toString(), this->name(), stateString(), stateString(state));
@@ -43,6 +70,7 @@ void UDP::updateState(UdpPeerState state) {
     }
 
     this->state = state;
+    return true;
 }
 
 std::string UDP::stateString() const {
@@ -159,10 +187,37 @@ void UDP4::tick() {
     }
 }
 
+void UDP4::handleHeartbeatMessage(const SocketAddress &address, uint8_t heartbeatAck) {
+    if (this->state == UdpPeerState::INIT || this->state == UdpPeerState::WAITING || this->state == UdpPeerState::FAILED) {
+        spdlog::debug("heartbeat peer state invalid: {} {}", this->address().toString(), stateString());
+        return;
+    }
+
+    if (!isLocalNetwork(address)) {
+        this->wide = address;
+    } else if (!peerManager().localP2PDisabled) {
+        this->local = address;
+    } else {
+        return;
+    }
+
+    if (!this->real || isLocalNetwork(address) || !isLocalNetwork(*this->real)) {
+        this->real = address;
+    }
+
+    if (!this->ack) {
+        this->ack = 1;
+    }
+
+    if (heartbeatAck && updateState(UdpPeerState::CONNECTED)) {
+        // TODO: 发送 Delay 报文
+    }
+}
+
 void UDP4::sendHeartbeat() {
     PeerMsg::Heartbeat heartbeat;
     heartbeat.kind = PeerMsgKind::HEARTBEAT;
-    heartbeat.ip = peerManager().getTunIp();
+    heartbeat.tunip = peerManager().getTunIp();
     heartbeat.ack = this->ack;
 
     auto buffer = this->info->encrypt(std::string((char *)&heartbeat, sizeof(heartbeat)));

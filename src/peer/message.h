@@ -40,8 +40,8 @@ namespace PeerMsg {
 
 struct Heartbeat {
     uint8_t kind;
-    uint32_t ip;
-    uint32_t _ip;
+    IP4 tunip;
+    IP4 _ip;
     uint16_t _port;
     uint8_t ack;
 } __attribute__((packed));

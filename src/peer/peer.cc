@@ -51,6 +51,7 @@ int PeerManager::setTransport(const std::vector<std::string> &transport) {
 
 int PeerManager::run(Client *client) {
     this->client = client;
+    this->localP2PDisabled = false;
 
     if (this->initSocket()) {
         Candy::shutdown(this->client);
@@ -106,6 +107,9 @@ void PeerManager::handlePeerQueue() {
         break;
     case MsgKind::TUNADDR:
         handleTunAddr(std::move(msg));
+        break;
+    case MsgKind::SYSRT:
+        this->localP2PDisabled = true;
         break;
     case MsgKind::TRYP2P:
         handleTryP2P(std::move(msg));
@@ -372,7 +376,23 @@ void PeerManager::handleUdp4Message(const std::string &buffer, const SocketAddre
 }
 
 void PeerManager::handleUdp4HeartbeatMessage(const std::string &buffer, const SocketAddress &address) {
-    spdlog::info("udp4 heartbeat message: {}", address.toString());
+    if (buffer.size() < sizeof(PeerMsg::Heartbeat)) {
+        spdlog::debug("udp4 heartbeat failed: len {} address {}", buffer.length(), address.toString());
+        return;
+    }
+
+    PeerMsg::Heartbeat *heartbeat = (PeerMsg::Heartbeat *)buffer.c_str();
+    std::shared_lock lock(this->ipPeerMutex);
+    auto it = this->ipPeerMap.find(heartbeat->tunip);
+    if (it == this->ipPeerMap.end()) {
+        spdlog::debug("udp4 heartbeat find peer failed: tun ip {}", heartbeat->tunip.toString());
+        return;
+    }
+
+    auto peer = it->second.Udp4();
+    if (peer) {
+        peer->handleHeartbeatMessage(address, heartbeat->ack);
+    }
 }
 
 void PeerManager::handleUdp4ForwardMessage(const std::string &buffer, const SocketAddress &address) {
