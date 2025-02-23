@@ -1,5 +1,5 @@
 #include "peer/tcp.h"
-#include "peer/info.h"
+#include "peer/peer.h"
 #include "spdlog/spdlog.h"
 
 namespace Candy {
@@ -14,16 +14,30 @@ bool TCP::tryToConnect() {
     return false;
 }
 
-std::string TCP4::name() {
+std::string TCP4::getName() {
+    return "TCP4";
+}
+
+void TCP4::tick() {
+    // TODO: TCP4 tick
+}
+
+int TCP4::send(const std::string &buffer) {
+    // TODO: TCP4 tick
+    return -1;
+}
+
+std::string TCP6::getName() {
     return "TCP6";
 }
 
-void TCP4::tick() {}
-
-std::string TCP6::name() {
-    return "TCP6";
+void TCP6::tick() {
+    // TODO: TCP6 tick
 }
 
-void TCP6::tick() {}
+int TCP6::send(const std::string &buffer) {
+    // TODO: TCP6 send
+    return -1;
+}
 
 } // namespace Candy

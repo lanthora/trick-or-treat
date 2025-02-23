@@ -8,24 +8,25 @@
 
 namespace Candy {
 
-class PeerInfo;
+class Peer;
 class PeerManager;
 
 class Connector {
 public:
-    Connector(PeerInfo *info) : info(info) {}
+    Connector(Peer *peer) : peer(peer) {}
 
     virtual bool isConnected() const = 0;
     virtual bool tryToConnect() = 0;
     virtual void tick() = 0;
-    virtual std::string name() = 0;
-    IP4 address();
-    PeerManager &peerManager();
+    virtual int send(const std::string &buffer) = 0;
+    virtual std::string getName() = 0;
+    IP4 getPeerAddress();
+    PeerManager &getPeerManager();
 
 protected:
     void refreshActiveTime();
     bool isActiveIn(std::chrono::system_clock::duration duration);
-    PeerInfo *info;
+    Peer *peer;
 
 private:
     std::chrono::system_clock::time_point lastActiveTime;

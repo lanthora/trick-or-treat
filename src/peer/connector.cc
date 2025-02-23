@@ -1,14 +1,14 @@
 #include "peer/connector.h"
-#include "peer/info.h"
+#include "peer/peer.h"
 
 namespace Candy {
 
-IP4 Connector::address() {
-    return this->info->getAddr();
+IP4 Connector::getPeerAddress() {
+    return this->peer->getAddr();
 }
 
-PeerManager &Connector::peerManager() {
-    return this->info->getPeerManager();
+PeerManager &Connector::getPeerManager() {
+    return this->peer->getManager();
 }
 
 void Connector::refreshActiveTime() {

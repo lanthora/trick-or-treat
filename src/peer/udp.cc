@@ -1,7 +1,7 @@
 #include "peer/udp.h"
 #include "core/client.h"
 #include "core/message.h"
-#include "peer/info.h"
+#include "peer/manager.h"
 #include "peer/peer.h"
 #include <Poco/Net/IPAddress.h>
 #include <Poco/Net/SocketAddress.h>
@@ -57,7 +57,7 @@ bool UDP::updateState(UdpPeerState state) {
         return false;
     }
 
-    spdlog::debug("state: {} {} {} => {}", this->address().toString(), this->name(), stateString(), stateString(state));
+    spdlog::debug("state: {} {} {} => {}", getPeerAddress().toString(), getName(), stateString(), stateString(state));
 
     if (state == UdpPeerState::INIT || state == UdpPeerState::WAITING || state == UdpPeerState::FAILED) {
         resetState();
@@ -98,7 +98,7 @@ std::string UDP::stateString(UdpPeerState state) const {
     }
 }
 
-std::string UDP4::name() {
+std::string UDP4::getName() {
     return "UDP4";
 }
 
@@ -121,8 +121,8 @@ void UDP4::updateInfo(IP4 ip, uint16_t port, bool local) {
 
     if (this->state != UdpPeerState::CONNECTING) {
         updateState(UdpPeerState::PREPARING);
-        CoreMsg::PubInfo info = {.dst = this->address(), .local = true};
-        peerManager().sendPubInfo(info);
+        CoreMsg::PubInfo info = {.dst = this->getPeerAddress(), .local = true};
+        getPeerManager().sendPubInfo(info);
         return;
     }
 }
@@ -136,8 +136,8 @@ void UDP4::handleStunResponse() {
     } else {
         updateState(UdpPeerState::CONNECTING);
     }
-    CoreMsg::PubInfo info = {.dst = this->address()};
-    peerManager().sendPubInfo(info);
+    CoreMsg::PubInfo info = {.dst = this->getPeerAddress()};
+    getPeerManager().sendPubInfo(info);
 }
 
 void UDP4::tick() {
@@ -146,7 +146,7 @@ void UDP4::tick() {
         break;
     case UdpPeerState::PREPARING:
         if (isActiveIn(std::chrono::seconds(10))) {
-            peerManager().udpStun.needed = true;
+            getPeerManager().udpStun.needed = true;
         } else {
             updateState(UdpPeerState::FAILED);
         }
@@ -189,13 +189,13 @@ void UDP4::tick() {
 
 void UDP4::handleHeartbeatMessage(const SocketAddress &address, uint8_t heartbeatAck) {
     if (this->state == UdpPeerState::INIT || this->state == UdpPeerState::WAITING || this->state == UdpPeerState::FAILED) {
-        spdlog::debug("heartbeat peer state invalid: {} {}", this->address().toString(), stateString());
+        spdlog::debug("heartbeat peer state invalid: {} {}", this->getPeerAddress().toString(), stateString());
         return;
     }
 
     if (!isLocalNetwork(address)) {
         this->wide = address;
-    } else if (!peerManager().localP2PDisabled) {
+    } else if (!getPeerManager().localP2PDisabled) {
         this->local = address;
     } else {
         return;
@@ -214,29 +214,39 @@ void UDP4::handleHeartbeatMessage(const SocketAddress &address, uint8_t heartbea
     }
 }
 
+int UDP4::send(const std::string &buffer) {
+    if (this->real) {
+        // FIXME: 处理 sendTo 产生的异常
+        if (buffer.size() == getPeerManager().udp4socket.sendTo(buffer.data(), buffer.size(), *this->real)) {
+            return 0;
+        }
+    }
+    return -1;
+}
+
 void UDP4::sendHeartbeat() {
     PeerMsg::Heartbeat heartbeat;
     heartbeat.kind = PeerMsgKind::HEARTBEAT;
-    heartbeat.tunip = peerManager().getTunIp();
+    heartbeat.tunip = getPeerManager().getTunIp();
     heartbeat.ack = this->ack;
 
-    auto buffer = this->info->encrypt(std::string((char *)&heartbeat, sizeof(heartbeat)));
+    auto buffer = this->peer->encrypt(std::string((char *)&heartbeat, sizeof(heartbeat)));
     if (!buffer) {
         return;
     }
 
     using Poco::Net::SocketAddress;
     if (this->real && (this->state == UdpPeerState::CONNECTED)) {
-        peerManager().udp4socket.sendTo(buffer->data(), buffer->size(), *this->real);
+        getPeerManager().udp4socket.sendTo(buffer->data(), buffer->size(), *this->real);
     }
 
     if (this->wide && (this->state == UdpPeerState::CONNECTING)) {
-        peerManager().udp4socket.sendTo(buffer->data(), buffer->size(), *this->wide);
+        getPeerManager().udp4socket.sendTo(buffer->data(), buffer->size(), *this->wide);
     }
 
     if (this->local && (this->state == UdpPeerState::PREPARING || this->state == UdpPeerState::SYNCHRONIZING ||
                         this->state == UdpPeerState::CONNECTING)) {
-        peerManager().udp4socket.sendTo(buffer->data(), buffer->size(), *this->local);
+        getPeerManager().udp4socket.sendTo(buffer->data(), buffer->size(), *this->local);
     }
 }
 
@@ -248,10 +258,17 @@ void UDP4::resetState() {
     this->delay = DELAY_LIMIT;
 }
 
-std::string UDP6::name() {
+std::string UDP6::getName() {
     return "UDP6";
 }
 
-void UDP6::tick() {}
+void UDP6::tick() {
+    // TODO: UDP6 tick
+}
+
+int UDP6::send(const std::string &buffer) {
+    // TODO: UDP6 send
+    return -1;
+}
 
 } // namespace Candy

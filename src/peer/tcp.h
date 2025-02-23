@@ -8,7 +8,7 @@ namespace Candy {
 
 class TCP : public Connector {
 public:
-    TCP(PeerInfo *info) : Connector(info) {}
+    TCP(Peer *peer) : Connector(peer) {}
 
     bool isConnected() const;
     bool tryToConnect();
@@ -16,16 +16,18 @@ public:
 
 class TCP4 : public TCP {
 public:
-    TCP4(PeerInfo *info) : TCP(info) {}
-    std::string name();
+    TCP4(Peer *peer) : TCP(peer) {}
+    std::string getName();
     void tick();
+    int send(const std::string &buffer);
 };
 
 class TCP6 : public TCP {
 public:
-    TCP6(PeerInfo *info) : TCP(info) {}
-    std::string name();
+    TCP6(Peer *peer) : TCP(peer) {}
+    std::string getName();
     void tick();
+    int send(const std::string &buffer);
 };
 
 } // namespace Candy

@@ -26,7 +26,7 @@ enum class UdpPeerState {
 
 class UDP : public Connector {
 public:
-    UDP(PeerInfo *info) : Connector(info) {}
+    UDP(Peer *peer) : Connector(peer) {}
 
     bool isConnected() const;
     bool tryToConnect();
@@ -45,13 +45,15 @@ protected:
 
 class UDP4 : public UDP {
 public:
-    UDP4(PeerInfo *info) : UDP(info) {}
+    UDP4(Peer *peer) : UDP(peer) {}
 
-    std::string name();
+    std::string getName();
     void updateInfo(IP4 ip, uint16_t port, bool local = false);
     void handleStunResponse();
     void tick();
     void handleHeartbeatMessage(const SocketAddress &address, uint8_t heartbeatAck);
+
+    int send(const std::string &buffer);
 
 protected:
     void resetState();
@@ -63,9 +65,11 @@ private:
 
 class UDP6 : public UDP {
 public:
-    UDP6(PeerInfo *info) : UDP(info) {}
-    std::string name();
+    UDP6(Peer *peer) : UDP(peer) {}
+    std::string getName();
     void tick();
+
+    int send(const std::string &buffer);
 
 protected:
     void resetState() {}
