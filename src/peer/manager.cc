@@ -165,11 +165,9 @@ IP4 PeerManager::getTunIp() {
 
 void PeerManager::handlePacket(Msg msg) {
     IP4Header *header = (IP4Header *)msg.data.data();
-    // 尝试 P2P 转发流量
     if (!sendPacket(header->daddr, msg)) {
         return;
     }
-    // 无法通过 P2P 转发流量,交给 WS 模块通过服务端转发
     this->client->wsMsgQueue.write(std::move(msg));
 }
 
@@ -413,11 +411,11 @@ void PeerManager::handleUdp4ForwardMessage(std::string &buffer, const SocketAddr
 }
 
 void PeerManager::handleUdp4DelayMessage(std::string &buffer, const SocketAddress &address) {
-    spdlog::info("udp4 delay message: {}", address.toString());
+    // TODO: handle udp4 delay message
 }
 
 void PeerManager::handleUdp4RouteMessage(std::string &buffer, const SocketAddress &address) {
-    spdlog::info("udp4 route message: {}", address.toString());
+    // TODO: handle udp4 route message
 }
 
 void PeerManager::poll() {

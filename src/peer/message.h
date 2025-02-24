@@ -16,19 +16,19 @@ constexpr uint8_t ROUTE = 4;
 
 } // namespace PeerMsgKind
 
-struct StunRequest {
+struct __attribute__((packed)) StunRequest {
     uint8_t type[2] = {0x00, 0x01};
     uint8_t length[2] = {0x00, 0x08};
     uint8_t cookie[4] = {0x21, 0x12, 0xa4, 0x42};
     uint8_t id[12] = {0x00};
-    struct {
+    struct __attribute__((packed)) {
         uint8_t type[2] = {0x00, 0x03};
         uint8_t length[2] = {0x00, 0x04};
         uint8_t notset[4] = {0x00};
     } attr;
 };
 
-struct StunResponse {
+struct __attribute__((packed)) StunResponse {
     uint16_t type;
     uint16_t length;
     uint32_t cookie;
@@ -38,18 +38,32 @@ struct StunResponse {
 
 namespace PeerMsg {
 
-struct Heartbeat {
+struct __attribute__((packed)) Heartbeat {
     uint8_t kind;
     IP4 tunip;
     IP4 _ip;
     uint16_t _port;
     uint8_t ack;
-} __attribute__((packed));
+};
 
-struct Forward {
+struct __attribute__((packed)) Forward {
     uint8_t type;
     IP4Header iph;
-} __attribute__((packed));
+};
+
+struct __attribute__((packed)) Delay {
+    uint8_t type;
+    IP4 src;
+    IP4 dst;
+    int64_t timestamp;
+};
+
+struct __attribute__((packed)) Route {
+    uint8_t type;
+    IP4 dst;
+    IP4 next;
+    int32_t delay;
+};
 
 } // namespace PeerMsg
 

@@ -23,8 +23,6 @@ public:
 private:
     // 目前只有一个 WebSocket 服务端的子模块
     WebSocketServer ws;
-
-    // TODO: 添加 STUN 服务端的支持
 };
 
 } // namespace Candy

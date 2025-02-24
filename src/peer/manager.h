@@ -62,7 +62,6 @@ private:
 
     std::thread msgThread;
 
-    // 处理 PACKET 报文,并判断目标是否可达
     int sendPacket(IP4 dst, const Msg &msg, bool direct = false);
     Address tunAddr;
 
