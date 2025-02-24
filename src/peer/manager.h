@@ -85,11 +85,11 @@ private:
     int initSocket();
     void sendUdpStunRequest();
     void handleUdpStunResponse(const std::string &buffer);
-    void handleUdp4Message(const std::string &buffer, const SocketAddress &address);
-    void handleUdp4HeartbeatMessage(const std::string &buffer, const SocketAddress &address);
-    void handleUdp4ForwardMessage(const std::string &buffer, const SocketAddress &address);
-    void handleUdp4DelayMessage(const std::string &buffer, const SocketAddress &address);
-    void handleUdp4RouteMessage(const std::string &buffer, const SocketAddress &address);
+    void handleUdp4Message(std::string &buffer, const SocketAddress &address);
+    void handleUdp4HeartbeatMessage(std::string &buffer, const SocketAddress &address);
+    void handleUdp4ForwardMessage(std::string &buffer, const SocketAddress &address);
+    void handleUdp4DelayMessage(std::string &buffer, const SocketAddress &address);
+    void handleUdp4RouteMessage(std::string &buffer, const SocketAddress &address);
     void poll();
 
     std::optional<std::string> decrypt(const std::string &ciphertext);

@@ -358,7 +358,7 @@ void PeerManager::handleUdpStunResponse(const std::string &buffer) {
     return;
 }
 
-void PeerManager::handleUdp4Message(const std::string &buffer, const SocketAddress &address) {
+void PeerManager::handleUdp4Message(std::string &buffer, const SocketAddress &address) {
     switch (buffer.front()) {
     case PeerMsgKind::HEARTBEAT:
         handleUdp4HeartbeatMessage(buffer, address);
@@ -378,7 +378,7 @@ void PeerManager::handleUdp4Message(const std::string &buffer, const SocketAddre
     }
 }
 
-void PeerManager::handleUdp4HeartbeatMessage(const std::string &buffer, const SocketAddress &address) {
+void PeerManager::handleUdp4HeartbeatMessage(std::string &buffer, const SocketAddress &address) {
     if (buffer.size() < sizeof(PeerMsg::Heartbeat)) {
         spdlog::debug("udp4 heartbeat failed: len {} address {}", buffer.length(), address.toString());
         return;
@@ -398,15 +398,25 @@ void PeerManager::handleUdp4HeartbeatMessage(const std::string &buffer, const So
     }
 }
 
-void PeerManager::handleUdp4ForwardMessage(const std::string &buffer, const SocketAddress &address) {
-    spdlog::info("udp4 forward message: {}", address.toString());
+void PeerManager::handleUdp4ForwardMessage(std::string &buffer, const SocketAddress &address) {
+    if (buffer.size() < sizeof(PeerMsg::Forward)) {
+        spdlog::warn("invalid forward message: {:n}", spdlog::to_hex(buffer));
+        return;
+    }
+    buffer.erase(0, 1);
+    IP4Header *header = (IP4Header *)buffer.data();
+    if (header->daddr == getTunIp()) {
+        this->client->tunMsgQueue.write(Msg(MsgKind::PACKET, std::move(buffer)));
+    } else {
+        this->client->peerMsgQueue.write(Msg(MsgKind::PACKET, std::move(buffer)));
+    }
 }
 
-void PeerManager::handleUdp4DelayMessage(const std::string &buffer, const SocketAddress &address) {
+void PeerManager::handleUdp4DelayMessage(std::string &buffer, const SocketAddress &address) {
     spdlog::info("udp4 delay message: {}", address.toString());
 }
 
-void PeerManager::handleUdp4RouteMessage(const std::string &buffer, const SocketAddress &address) {
+void PeerManager::handleUdp4RouteMessage(std::string &buffer, const SocketAddress &address) {
     spdlog::info("udp4 route message: {}", address.toString());
 }
 

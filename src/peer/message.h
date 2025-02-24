@@ -46,6 +46,11 @@ struct Heartbeat {
     uint8_t ack;
 } __attribute__((packed));
 
+struct Forward {
+    uint8_t type;
+    IP4Header iph;
+} __attribute__((packed));
+
 } // namespace PeerMsg
 
 } // namespace Candy
